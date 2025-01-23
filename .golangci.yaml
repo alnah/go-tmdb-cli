@@ -1,0 +1,27 @@
+linters:
+  enable:
+    - staticcheck # Detects common bugs and performance issues
+    - gosimple # Simplifies overly complex code
+    - errcheck # Ensures errors are checked
+    - govet # Highlights suspicious constructs
+    - unused # Finds unused code
+    - unparam # Detects unused function parameters
+    - ineffassign # Finds assignments that are never used
+  disable:
+    - lll # Disable long line linter (optional)
+    - gocyclo # Disable cyclomatic complexity check (optional)
+
+run:
+  timeout: 30s # Linter timeout
+  issues.exclude-dirs:
+    - vendor # Skip vendor directory
+    - build # Skip build directory
+    - tools # Skip tools directory
+  issues.exclude-files:
+    - _test.go # Optional: Skip specific patterns
+
+issues:
+  exclude-rules:
+    - linters:
+        - errcheck
+      text: "defer" # Ignore unchecked defer statements
