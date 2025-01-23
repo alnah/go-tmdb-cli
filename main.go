@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -17,7 +19,35 @@ func main() {
 		fmt.Println(err.Error())
 	}
 
-	fmt.Println(token)
+	intPtr := func(value int) *int {
+		return &value
+	}
+
+	query := &queryParams{
+		page:    intPtr(1),
+		year:    intPtr(2000),
+		date:    &date{value: "2000-06-01", option: "gte"},
+		average: &average{value: 8.0, option: "gte"},
+		vote:    &vote{value: 1000, option: "gte"},
+	}
+
+	url, err := query.buildURL()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+
+	fmt.Println(string(body))
 }
 
 func getTMDBToken(filepath string) (string, error) {
@@ -67,7 +97,7 @@ type queryParams struct {
 	vote    *vote
 }
 
-func (qp queryParams) buildQuery() (string, error) {
+func (qp queryParams) buildURL() (string, error) {
 	var query strings.Builder
 	query.WriteString(discoverURL + language)
 

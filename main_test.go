@@ -39,7 +39,7 @@ func TestUnitGetTMDBToken(t *testing.T) {
 	})
 }
 
-func TestUnitBuildQuery(t *testing.T) {
+func TestUnitBuildURL(t *testing.T) {
 	t.Run("return query", func(t *testing.T) {
 		query := &queryParams{
 			page:    intPtr(2),
@@ -54,7 +54,7 @@ func TestUnitBuildQuery(t *testing.T) {
 			"&primary_release_year=2000" +
 			"&primary_release_date.gte=2000-06-01" +
 			"&vote_average.gte=8.0&vote_count.gte=1000"
-		got, err := query.buildQuery()
+		got, err := query.buildURL()
 		assert.NoError(t, err)
 		assert.Equal(t, want, got)
 	})
@@ -68,7 +68,7 @@ func TestUnitBuildQuery(t *testing.T) {
 		}
 
 		var want *filterError
-		got, err := query.buildQuery()
+		got, err := query.buildURL()
 		assert.Empty(t, got)
 		assert.ErrorAs(t, err, &want)
 	})
