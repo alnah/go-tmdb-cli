@@ -37,24 +37,30 @@ func GetTMDBToken(filepath string) (string, error) {
 }
 
 type Date struct {
-	Value  string
-	Option string
+	StartDate   string
+	StartOption string
+	EndDate     string
+	EndOption   string
 }
 
 type Average struct {
-	Value  float64
-	Option string
+	StartAverage float64
+	StartOption  string
+	EndAverage   float64
+	EndOption    string
 }
 
 type Vote struct {
-	Value  int
-	Option string
+	StartVotes  int
+	StartOption string
+	EndVotes    int
+	EndOption   string
 }
 
 type QueryParams struct {
-	MovieListPath *string
-	Page          *int
-	Year          *int
+	MovieListPath string
+	Page          int
+	Year          int
 	Date          *Date
 	Average       *Average
 	Vote          *Vote
@@ -64,7 +70,7 @@ func (qp QueryParams) BuildURL() (string, error) {
 	var query strings.Builder
 	query.WriteString(BaseURL)
 
-	if qp.MovieListPath != nil {
+	if qp.MovieListPath != "" {
 		filter, err := qp.SetMoviesList()
 		if err != nil {
 			return "", err
@@ -106,15 +112,14 @@ func (e FilterError) Error() string {
 }
 
 func (qp QueryParams) SetMoviesList() (string, error) {
-	if qp.MovieListPath == nil {
+	if qp.MovieListPath == "" {
 		return "", nil
 	}
 
 	wantPaths := []string{"now_playing", "popular", "top_rated", "upcoming"}
-	path := *qp.MovieListPath
 	for _, p := range wantPaths {
-		if path == p {
-			return fmt.Sprintf(MoviesListURL, path), nil
+		if qp.MovieListPath == p {
+			return fmt.Sprintf(MoviesListURL, qp.MovieListPath), nil
 		}
 	}
 
@@ -131,33 +136,28 @@ func (qp QueryParams) SetMoviesList() (string, error) {
 }
 
 func (qp QueryParams) SetPageFilter() (string, error) {
-	if qp.Page == nil {
+	if qp.Page == 0 {
 		return "", nil
 	}
 
-	page := *qp.Page
-	if page < minInt || page > maxInt {
-		return "", &FilterError{
-			Filter:  "Page",
-			Message: fmt.Sprintf("Must be between %d and %d", minInt, maxInt),
-		}
-	}
-
-	return fmt.Sprintf("page=%d", page), nil
-}
-
-func (qp QueryParams) SetYearFilter() (string, error) {
-	if qp.Year == nil {
-		return "", nil
-	}
-
-	year := *qp.Year
-	nowYear := time.Now().Year()
-	if err := validateRange(year, firstYear, nowYear, "Year"); err != nil {
+	if err := validateRange(qp.Page, minInt, maxInt, "Page"); err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("primary_release_year=%d", year), nil
+	return fmt.Sprintf("page=%d", qp.Page), nil
+}
+
+func (qp QueryParams) SetYearFilter() (string, error) {
+	if qp.Year == 0 {
+		return "", nil
+	}
+
+	nowYear := time.Now().Year()
+	if err := validateRange(qp.Year, firstYear, nowYear, "Year"); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("primary_release_year=%d", qp.Year), nil
 }
 
 func (qp QueryParams) SetDateFilter() (string, error) {
@@ -166,18 +166,23 @@ func (qp QueryParams) SetDateFilter() (string, error) {
 	}
 
 	date := *qp.Date
-	parsedDate, err := time.Parse(time.DateOnly, date.Value)
-	if err != nil {
-		return "", &FilterError{
-			Filter:  "Date",
-			Message: `Date value must be a valid "YYYY-MM-DD" format`,
-		}
-	}
+	for _, d := range []string{date.StartDate, date.EndDate} {
+		if d != "" {
+			parsedDate, err := time.Parse(time.DateOnly, d)
+			if err != nil {
+				return "", &FilterError{
+					Filter:  "Date",
+					Message: `Date value must be a valid "YYYY-MM-DD" format`,
+				}
+			}
 
-	year := parsedDate.Year()
-	nowYear := time.Now().Year()
-	if err = validateRange(year, firstYear, nowYear, "Year Date"); err != nil {
-		return "", err
+			year := parsedDate.Year()
+			nowYear := time.Now().Year()
+			err = validateRange(year, firstYear, nowYear, "Year Date")
+			if err != nil {
+				return "", err
+			}
+		}
 	}
 
 	return handleGteOrLte(date, "primary_release_date", "Date")
@@ -189,9 +194,13 @@ func (qp QueryParams) SetAverageFilter() (string, error) {
 	}
 
 	average := *qp.Average
-	err := validateRange(average.Value, minAverage, maxAverage, "Average")
-	if err != nil {
-		return "", err
+	for _, a := range []float64{average.StartAverage, average.EndAverage} {
+		if a != 0 {
+			err := validateRange(a, minAverage, maxAverage, "Average")
+			if err != nil {
+				return "", err
+			}
+		}
 	}
 
 	return handleGteOrLte(average, "vote_average", "Average")
@@ -203,8 +212,12 @@ func (qp QueryParams) SetVoteFilter() (string, error) {
 	}
 
 	vote := *qp.Vote
-	if err := validateRange(vote.Value, minInt, maxInt, "Vote"); err != nil {
-		return "", err
+	for _, v := range []int{vote.StartVotes, vote.EndVotes} {
+		if v != 0 {
+			if err := validateRange(v, minInt, maxInt, "Vote"); err != nil {
+				return "", err
+			}
+		}
 	}
 
 	return handleGteOrLte(vote, "vote_count", "Vote")
@@ -222,30 +235,69 @@ func validateRange[T constraints.Ordered](val, min, max T, filter string) error 
 }
 
 func handleGteOrLte[T any](structure T, param, filter string) (string, error) {
-	var value string
-	var option string
+	var startValue, endValue, startPart string
+	var startOption, endOption, endPart string
 
 	switch v := any(structure).(type) {
 	case Date:
-		value = v.Value
-		option = v.Option
+		startValue, endValue = v.StartDate, v.EndDate
+		startOption, endOption = v.StartOption, v.EndOption
 	case Average:
-		value = fmt.Sprintf("%.1f", v.Value)
-		option = v.Option
+		startValue = fmt.Sprintf("%.1f", v.StartAverage)
+		endValue = fmt.Sprintf("%.1f", v.EndAverage)
+		startOption, endOption = v.StartOption, v.EndOption
 	case Vote:
-		value = fmt.Sprintf("%d", v.Value)
-		option = v.Option
+		startValue = fmt.Sprintf("%d", v.StartVotes)
+		endValue = fmt.Sprintf("%d", v.EndVotes)
+		startOption, endOption = v.StartOption, v.EndOption
 	}
 
-	switch option {
-	case "gte":
-		return fmt.Sprintf("%s.gte=%s", param, value), nil
-	case "lte":
-		return fmt.Sprintf("%s.lte=%s", param, value), nil
-	default:
+	if startOption == endOption {
 		return "", &FilterError{
 			Filter:  filter,
-			Message: `Option must be "gte" or "lte"`,
+			Message: `The same option can't be used twice`,
 		}
 	}
+
+	if startValue == endValue {
+		return "", &FilterError{
+			Filter:  filter,
+			Message: `The same value can't be used twice`,
+		}
+	}
+
+	buildQuery := func(option, param, filter string, value any) (string, error) {
+		var part string
+
+		switch option {
+		case "gte":
+			part = fmt.Sprintf("%s.gte=%s", param, value)
+		case "lte":
+			part = fmt.Sprintf("%s.lte=%s", param, value)
+		default:
+			return "", &FilterError{
+				Filter:  filter,
+				Message: `Option must be "gte" or "lte"`,
+			}
+		}
+		return part, nil
+	}
+
+	startPart, err := buildQuery(startOption, param, filter, startValue)
+	if err != nil {
+		return "", err
+	}
+
+	if endValue != "" && endOption != "" {
+		endPart, err = buildQuery(endOption, param, filter, endValue)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if endPart != "" {
+		return startPart + "&" + endPart, nil
+	}
+
+	return startPart, nil
 }

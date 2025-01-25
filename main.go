@@ -34,10 +34,19 @@ func main() {
 	}
 
 	query := &i.QueryParams{
-		Page:    toPtr(1),
-		Year:    toPtr(2000),
-		Average: &i.Average{Value: 7.0, Option: "gte"},
-		Vote:    &i.Vote{Value: 1000, Option: "gte"},
+		Page: 1,
+		Date: &i.Date{
+			StartDate: "1940-01-01", StartOption: "gte",
+			EndDate: "1950-01-01", EndOption: "lte",
+		},
+		Average: &i.Average{
+			StartAverage: 7.0, StartOption: "gte",
+			EndAverage: 8.0, EndOption: "lte",
+		},
+		Vote: &i.Vote{
+			StartVotes: 1000, StartOption: "gte",
+			EndVotes: 7000, EndOption: "lte",
+		},
 	}
 
 	url, err := query.BuildURL()
@@ -98,8 +107,4 @@ func fetch(url string, token string) Response {
 	}
 
 	return data
-}
-
-func toPtr[T any](value T) *T {
-	return &value
 }
