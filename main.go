@@ -34,18 +34,17 @@ func main() {
 	}
 
 	query := &i.QueryParams{
-		Page: 1,
+		Page:     1,
+		Language: "fr",
 		Date: &i.Date{
 			StartDate: "1940-01-01", StartOption: "gte",
 			EndDate: "1950-01-01", EndOption: "lte",
 		},
 		Average: &i.Average{
 			StartAverage: 7.0, StartOption: "gte",
-			EndAverage: 8.0, EndOption: "lte",
 		},
 		Vote: &i.Vote{
-			StartVotes: 1000, StartOption: "gte",
-			EndVotes: 7000, EndOption: "lte",
+			StartVotes: 200, StartOption: "gte",
 		},
 	}
 

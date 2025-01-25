@@ -59,6 +59,7 @@ type Vote struct {
 
 type QueryParams struct {
 	MovieListPath string
+	Language      string
 	Page          int
 	Year          int
 	Date          *Date
@@ -84,6 +85,7 @@ func (qp QueryParams) BuildURL() (string, error) {
 		setFilterFunc func() (string, error)
 	}{
 		{qp.SetMoviesList},
+		{qp.SetLanguage},
 		{qp.SetPageFilter},
 		{qp.SetYearFilter},
 		{qp.SetDateFilter},
@@ -133,6 +135,21 @@ func (qp QueryParams) SetMoviesList() (string, error) {
 		Filter:  "MoviesList",
 		Message: fmt.Sprintf("Path must be %v", paths),
 	}
+}
+
+func (qp *QueryParams) SetLanguage() (string, error) {
+	if qp.Language == "" {
+		return "", nil
+	}
+
+	if len(qp.Language) != 2 {
+		return "", &FilterError{
+			Filter:  "Language",
+			Message: "Must be a valid ISO 639-1 language code",
+		}
+	}
+
+	return fmt.Sprintf("with_original_language=%s", qp.Language), nil
 }
 
 func (qp QueryParams) SetPageFilter() (string, error) {

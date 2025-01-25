@@ -121,6 +121,74 @@ func TestUnitFilterError(t *testing.T) {
 	})
 }
 
+func TestUnitSetLanguage(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		iso     string
+		want    string
+		wantErr bool
+	}{
+		{
+			desc: "return english",
+			iso:  "en",
+			want: "with_original_language=en",
+		},
+		{
+			desc: "return french",
+			iso:  "fr",
+			want: "with_original_language=fr",
+		},
+		{
+			desc: "return portuguese",
+			iso:  "pt",
+			want: "with_original_language=pt",
+		},
+		{
+			desc: "return japanese",
+			iso:  "jp",
+			want: "with_original_language=jp",
+		},
+		{
+			desc: "return mandarin",
+			iso:  "zh",
+			want: "with_original_language=zh",
+		},
+		{
+			desc: "return guarani",
+			iso:  "gn",
+			want: "with_original_language=gn",
+		},
+		{
+			desc:    "return filter error when not ISO 639-1 language code",
+			iso:     "invalid",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			query := &i.QueryParams{Language: tc.iso}
+			got, err := query.SetLanguage()
+			switch {
+			case tc.wantErr:
+				var want *i.FilterError
+				assert.Empty(t, got)
+				assert.ErrorAs(t, err, &want)
+			default:
+				assert.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+
+	t.Run("return empty string when no language", func(t *testing.T) {
+		query := &i.QueryParams{Language: ""}
+		got, err := query.SetLanguage()
+		assert.Empty(t, got)
+		assert.NoError(t, err)
+	})
+}
+
 func TestUnitSetMoviesList(t *testing.T) {
 	testCases := []struct {
 		desc    string
