@@ -1,64 +1,31 @@
-package tmdb_test
+package query_test
 
 import (
 	"fmt"
-	"io/fs"
-	"os"
 	"testing"
 
-	i "github.com/alnah/go-tmdb-cli/internal"
+	q "github.com/alnah/go-tmdb-cli/internal/query"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUnitGetTMDBToken(t *testing.T) {
-	t.Run("returns TMDB API Token from env file", func(t *testing.T) {
-		file := createTempFile(t)
-
-		_, err := file.WriteString(`TOKEN="test"`)
-		assert.NoError(t, err)
-
-		got, err := i.GetTMDBToken(file.Name())
-		assert.NoError(t, err)
-		assert.Equal(t, "test", got)
-	})
-
-	t.Run("returns path error when env file doesn't exist", func(t *testing.T) {
-		var want *fs.PathError
-		_, err := i.GetTMDBToken("test.env")
-		assert.ErrorAs(t, err, &want)
-	})
-
-	t.Run("returns config parse error when invalid data", func(t *testing.T) {
-		file := createTempFile(t)
-
-		_, err := file.WriteString(`invalid_data`)
-		assert.NoError(t, err)
-
-		var want viper.ConfigParseError
-		_, err = i.GetTMDBToken(file.Name())
-		assert.ErrorAs(t, err, &want)
-	})
-}
-
-func TestUnitBuildURL(t *testing.T) {
+func TestUnitBuildQuery(t *testing.T) {
 	t.Run("return query", func(t *testing.T) {
 		testCases := []struct {
 			desc  string
-			query *i.QueryParams
+			query *q.QueryParams
 			want  string
 		}{
 			{
 				desc: "page year date average",
-				query: &i.QueryParams{
+				query: &q.QueryParams{
 					Page:    2,
 					Year:    2000,
-					Date:    &i.Date{StartDate: "2000-06-01", StartOption: "gte"},
-					Average: &i.Average{StartAverage: 8.0, StartOption: "gte"},
-					Vote:    &i.Vote{StartVotes: 1000, StartOption: "gte"},
+					Date:    &q.Date{StartDate: "2000-06-01", StartOption: "gte"},
+					Average: &q.Average{StartAverage: 8.0, StartOption: "gte"},
+					Vote:    &q.Vote{StartVote: 1000, StartOption: "gte"},
 				},
-				want: i.BaseURL + i.DiscoverURL +
+				want: q.BaseURL + q.DiscoverURL +
 					"page=2" +
 					"&primary_release_year=2000" +
 					"&primary_release_date.gte=2000-06-01" +
@@ -66,16 +33,16 @@ func TestUnitBuildURL(t *testing.T) {
 			},
 			{
 				desc: "popular movies list",
-				query: &i.QueryParams{
+				query: &q.QueryParams{
 					MovieListPath: "popular",
 				},
-				want: fmt.Sprintf(i.BaseURL+i.MoviesListURL, "popular"),
+				want: fmt.Sprintf(q.BaseURL+q.MoviesListURL, "popular"),
 			},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.desc, func(t *testing.T) {
-				got, err := tc.query.BuildURL()
+				got, err := tc.query.BuildQuery()
 				assert.NoError(t, err)
 				assert.Equal(t, tc.want, got)
 			})
@@ -85,12 +52,12 @@ func TestUnitBuildURL(t *testing.T) {
 	t.Run("return filter error when error occured", func(t *testing.T) {
 		testCases := []struct {
 			desc  string
-			query *i.QueryParams
+			query *q.QueryParams
 		}{
 			{
 				desc: "on discover",
-				query: &i.QueryParams{
-					Date: &i.Date{
+				query: &q.QueryParams{
+					Date: &q.Date{
 						StartDate:   "1800-01-01", // movies don't exist at that time
 						StartOption: "gte",
 					},
@@ -98,15 +65,15 @@ func TestUnitBuildURL(t *testing.T) {
 			},
 			{
 				desc: "on movies list",
-				query: &i.QueryParams{
+				query: &q.QueryParams{
 					MovieListPath: "invalid",
 				},
 			},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.desc, func(t *testing.T) {
-				var want *i.FilterError
-				got, err := tc.query.BuildURL()
+				var want *q.FilterError
+				got, err := tc.query.BuildQuery()
 				assert.Empty(t, got)
 				assert.ErrorAs(t, err, &want)
 			})
@@ -116,8 +83,64 @@ func TestUnitBuildURL(t *testing.T) {
 
 func TestUnitFilterError(t *testing.T) {
 	t.Run("return filter error", func(t *testing.T) {
-		err := &i.FilterError{Filter: "Test", Message: "Description"}
-		assert.Equal(t, "Test: Description.", err.Error())
+		err := &q.FilterError{Filter: "Test", Message: "description"}
+		assert.Equal(t, "Test description.", err.Error())
+	})
+}
+
+func TestUnitSetMoviesList(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		path    string
+		wantErr bool
+	}{
+		{
+			desc: "return now playing",
+			path: "now_playing",
+		},
+		{
+			desc: "return popular",
+			path: "popular",
+		},
+		{
+			desc: "return top rated",
+			path: "top_rated",
+		},
+		{
+			desc: "return upcoming",
+			path: "upcoming",
+		},
+		{
+			desc:    "return filter error when doesn't match wanted paths",
+			path:    "invalid",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			switch {
+			case tc.wantErr:
+				query := q.QueryParams{MovieListPath: tc.path}
+				var want *q.FilterError
+				got, err := query.SetMoviesList()
+				assert.Empty(t, got)
+				assert.ErrorAs(t, err, &want)
+			default:
+				query := q.QueryParams{MovieListPath: tc.path}
+				want := fmt.Sprintf(q.MoviesListURL, tc.path)
+				got, err := query.SetMoviesList()
+				assert.NoError(t, err)
+				assert.Equal(t, want, got)
+			}
+		})
+	}
+
+	t.Run("return empty string when no movies list", func(t *testing.T) {
+		query := &q.QueryParams{MovieListPath: ""}
+		got, err := query.SetMoviesList()
+		assert.Empty(t, got)
+		assert.NoError(t, err)
 	})
 }
 
@@ -167,11 +190,11 @@ func TestUnitSetLanguage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			query := &i.QueryParams{Language: tc.iso}
+			query := &q.QueryParams{Language: tc.iso}
 			got, err := query.SetLanguage()
 			switch {
 			case tc.wantErr:
-				var want *i.FilterError
+				var want *q.FilterError
 				assert.Empty(t, got)
 				assert.ErrorAs(t, err, &want)
 			default:
@@ -182,64 +205,8 @@ func TestUnitSetLanguage(t *testing.T) {
 	}
 
 	t.Run("return empty string when no language", func(t *testing.T) {
-		query := &i.QueryParams{Language: ""}
+		query := &q.QueryParams{Language: ""}
 		got, err := query.SetLanguage()
-		assert.Empty(t, got)
-		assert.NoError(t, err)
-	})
-}
-
-func TestUnitSetMoviesList(t *testing.T) {
-	testCases := []struct {
-		desc    string
-		path    string
-		wantErr bool
-	}{
-		{
-			desc: "return now playing",
-			path: "now_playing",
-		},
-		{
-			desc: "return popular",
-			path: "popular",
-		},
-		{
-			desc: "return top rated",
-			path: "top_rated",
-		},
-		{
-			desc: "return upcoming",
-			path: "upcoming",
-		},
-		{
-			desc:    "return filter error when doesn't match wanted paths",
-			path:    "invalid",
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			switch {
-			case tc.wantErr:
-				query := i.QueryParams{MovieListPath: tc.path}
-				var want *i.FilterError
-				got, err := query.SetMoviesList()
-				assert.Empty(t, got)
-				assert.ErrorAs(t, err, &want)
-			default:
-				query := i.QueryParams{MovieListPath: tc.path}
-				want := fmt.Sprintf(i.MoviesListURL, tc.path)
-				got, err := query.SetMoviesList()
-				assert.NoError(t, err)
-				assert.Equal(t, want, got)
-			}
-		})
-	}
-
-	t.Run("return empty string when no movies list", func(t *testing.T) {
-		query := &i.QueryParams{MovieListPath: ""}
-		got, err := query.SetMoviesList()
 		assert.Empty(t, got)
 		assert.NoError(t, err)
 	})
@@ -270,11 +237,11 @@ func TestUnitSetPageFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			query := &i.QueryParams{Page: tc.value}
+			query := &q.QueryParams{Page: tc.value}
 			got, err := query.SetPageFilter()
 			switch {
 			case tc.wantErr:
-				var want *i.FilterError
+				var want *q.FilterError
 				assert.Empty(t, got)
 				assert.ErrorAs(t, err, &want)
 			default:
@@ -310,11 +277,11 @@ func TestUnitSetYearFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			query := &i.QueryParams{Year: tc.value}
+			query := &q.QueryParams{Year: tc.value}
 			got, err := query.SetYearFilter()
 			switch {
 			case tc.wantErr:
-				var want *i.FilterError
+				var want *q.FilterError
 				assert.Empty(t, got)
 				assert.ErrorAs(t, err, &want)
 			default:
@@ -328,13 +295,13 @@ func TestUnitSetYearFilter(t *testing.T) {
 func TestUnitSetDateFilter(t *testing.T) {
 	testCases := []struct {
 		desc    string
-		date    i.Date
+		date    q.Date
 		want    string
 		wantErr bool
 	}{
 		{
 			desc: "return start date gte",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "gte",
 			},
@@ -342,7 +309,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return start date lte",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "lte",
 			},
@@ -350,7 +317,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return start date gte and end date lte",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "gte",
 				EndDate:     "2002-02-02",
@@ -361,7 +328,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return start date lte and end date gte",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "lte",
 				EndDate:     "2002-02-02",
@@ -372,7 +339,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid start date format",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "01-01-2001", // invalid date format
 				StartOption: "gte",
 			},
@@ -380,7 +347,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid start date range",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "1800-01-01", // movies don't exist at that time
 				StartOption: "gte",
 			},
@@ -388,7 +355,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid start date option",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "invalid",
 			},
@@ -396,7 +363,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid end date format",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "lte",
 				EndDate:     "01-01-2001", // invalid date format
@@ -406,7 +373,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid end date range",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "lte",
 				EndDate:     "1800-01-01", // movies don't exist at that time
@@ -416,7 +383,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid end date option",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "lte",
 				EndDate:     "2002-02-02",
@@ -426,7 +393,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when same options",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "lte",
 				EndDate:     "2002-02-02",
@@ -437,7 +404,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 
 		{
 			desc: "return filter error when same dates",
-			date: i.Date{
+			date: q.Date{
 				StartDate:   "2001-01-01",
 				StartOption: "lte",
 				EndDate:     "2001-01-01",
@@ -449,11 +416,11 @@ func TestUnitSetDateFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			query := &i.QueryParams{Date: &tc.date}
+			query := &q.QueryParams{Date: &tc.date}
 			got, err := query.SetDateFilter()
 			switch {
 			case tc.wantErr:
-				var want *i.FilterError
+				var want *q.FilterError
 				assert.Empty(t, got)
 				assert.ErrorAs(t, err, &want)
 			default:
@@ -464,7 +431,7 @@ func TestUnitSetDateFilter(t *testing.T) {
 	}
 
 	t.Run("return empty string when no date", func(t *testing.T) {
-		query := &i.QueryParams{Date: nil}
+		query := &q.QueryParams{Date: nil}
 		got, err := query.SetDateFilter()
 		assert.Empty(t, got)
 		assert.NoError(t, err)
@@ -474,13 +441,13 @@ func TestUnitSetDateFilter(t *testing.T) {
 func TestUnitSetAverageFilter(t *testing.T) {
 	testCases := []struct {
 		desc    string
-		average i.Average
+		average q.Average
 		want    string
 		wantErr bool
 	}{
 		{
 			desc: "return start average gte",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 8.0,
 				StartOption:  "gte",
 			},
@@ -488,7 +455,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return start average lte",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 8.0,
 				StartOption:  "lte",
 			},
@@ -496,7 +463,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return start average gte and end average lte",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 7.0,
 				StartOption:  "gte",
 				EndAverage:   8.0,
@@ -507,7 +474,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return start average lte and end average gte",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 7.0,
 				StartOption:  "lte",
 				EndAverage:   8.0,
@@ -518,7 +485,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid start option",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 8.0,
 				StartOption:  "invalid",
 			},
@@ -526,7 +493,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when start average out of range",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 100.0,
 				StartOption:  "gte",
 			},
@@ -534,7 +501,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when end average out of range",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 7.0,
 				StartOption:  "lte",
 				EndAverage:   100.0, // invalid average
@@ -544,7 +511,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid end option",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 7.0,
 				StartOption:  "lte",
 				EndAverage:   8.0,
@@ -554,7 +521,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when same options",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 7.0,
 				StartOption:  "lte",
 				EndAverage:   8.0,
@@ -565,7 +532,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 
 		{
 			desc: "return filter error when same averages",
-			average: i.Average{
+			average: q.Average{
 				StartAverage: 8.0,
 				StartOption:  "lte",
 				EndAverage:   8.0,
@@ -577,11 +544,11 @@ func TestUnitSetAverageFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			query := &i.QueryParams{Average: &tc.average}
+			query := &q.QueryParams{Average: &tc.average}
 			got, err := query.SetAverageFilter()
 			switch {
 			case tc.wantErr:
-				var want *i.FilterError
+				var want *q.FilterError
 				assert.Empty(t, got)
 				assert.ErrorAs(t, err, &want)
 			default:
@@ -592,7 +559,7 @@ func TestUnitSetAverageFilter(t *testing.T) {
 	}
 
 	t.Run("return empty string when no average", func(t *testing.T) {
-		query := &i.QueryParams{Average: nil}
+		query := &q.QueryParams{Average: nil}
 		got, err := query.SetAverageFilter()
 		assert.Empty(t, got)
 		assert.NoError(t, err)
@@ -602,43 +569,43 @@ func TestUnitSetAverageFilter(t *testing.T) {
 func TestUnitSetVoteFilter(t *testing.T) {
 	testCases := []struct {
 		desc    string
-		votes   i.Vote
+		vote    q.Vote
 		want    string
 		wantErr bool
 	}{
 		{
-			desc: "return start votes gte",
-			votes: i.Vote{
-				StartVotes:  1000,
+			desc: "return start vote gte",
+			vote: q.Vote{
+				StartVote:   1000,
 				StartOption: "gte",
 			},
 			want: "vote_count.gte=1000",
 		},
 		{
-			desc: "return start votes lte",
-			votes: i.Vote{
-				StartVotes:  1000,
+			desc: "return start vote lte",
+			vote: q.Vote{
+				StartVote:   1000,
 				StartOption: "lte",
 			},
 			want: "vote_count.lte=1000",
 		},
 		{
-			desc: "return start votes gte and end votes lte",
-			votes: i.Vote{
-				StartVotes:  500,
+			desc: "return start vote gte and end vote lte",
+			vote: q.Vote{
+				StartVote:   500,
 				StartOption: "gte",
-				EndVotes:    1000,
+				EndVote:     1000,
 				EndOption:   "lte",
 			},
 			want: "vote_count.gte=500&" +
 				"vote_count.lte=1000",
 		},
 		{
-			desc: "return start votes lte and end votes gte",
-			votes: i.Vote{
-				StartVotes:  500,
+			desc: "return start vote lte and end vote gte",
+			vote: q.Vote{
+				StartVote:   500,
 				StartOption: "lte",
-				EndVotes:    1000,
+				EndVote:     1000,
 				EndOption:   "gte",
 			},
 			want: "vote_count.lte=500&" +
@@ -646,57 +613,57 @@ func TestUnitSetVoteFilter(t *testing.T) {
 		},
 		{
 			desc: "return filter error when invalid start option",
-			votes: i.Vote{
-				StartVotes:  1000,
+			vote: q.Vote{
+				StartVote:   1000,
 				StartOption: "invalid",
 			},
 			wantErr: true,
 		},
 		{
-			desc: "return filter error when start votes out of range",
-			votes: i.Vote{
-				StartVotes:  2147483648, // invalid votes
+			desc: "return filter error when start vote out of range",
+			vote: q.Vote{
+				StartVote:   2147483648, // invalid vote
 				StartOption: "gte",
 			},
 			wantErr: true,
 		},
 		{
-			desc: "return filter error when end votes out of range",
-			votes: i.Vote{
-				StartVotes:  500,
+			desc: "return filter error when end vote out of range",
+			vote: q.Vote{
+				StartVote:   500,
 				StartOption: "lte",
-				EndVotes:    2147483648, // invalid votes
+				EndVote:     2147483648, // invalid vote
 				EndOption:   "gte",
 			},
 			wantErr: true,
 		},
 		{
 			desc: "return filter error when invalid end option",
-			votes: i.Vote{
-				StartVotes:  500,
+			vote: q.Vote{
+				StartVote:   500,
 				StartOption: "lte",
-				EndVotes:    1000,
+				EndVote:     1000,
 				EndOption:   "invalid",
 			},
 			wantErr: true,
 		},
 		{
 			desc: "return filter error when same options",
-			votes: i.Vote{
-				StartVotes:  500,
+			vote: q.Vote{
+				StartVote:   500,
 				StartOption: "lte",
-				EndVotes:    1000,
+				EndVote:     1000,
 				EndOption:   "lte",
 			},
 			wantErr: true,
 		},
 
 		{
-			desc: "return filter error when same votes",
-			votes: i.Vote{
-				StartVotes:  1000,
+			desc: "return filter error when same vote",
+			vote: q.Vote{
+				StartVote:   1000,
 				StartOption: "lte",
-				EndVotes:    1000,
+				EndVote:     1000,
 				EndOption:   "gte",
 			},
 			wantErr: true,
@@ -705,11 +672,11 @@ func TestUnitSetVoteFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			query := &i.QueryParams{Vote: &tc.votes}
+			query := &q.QueryParams{Vote: &tc.vote}
 			got, err := query.SetVoteFilter()
 			switch {
 			case tc.wantErr:
-				var want *i.FilterError
+				var want *q.FilterError
 				assert.Empty(t, got)
 				assert.ErrorAs(t, err, &want)
 			default:
@@ -720,22 +687,50 @@ func TestUnitSetVoteFilter(t *testing.T) {
 	}
 
 	t.Run("return empty string when no date", func(t *testing.T) {
-		query := &i.QueryParams{Average: nil}
+		query := &q.QueryParams{Average: nil}
 		got, err := query.SetVoteFilter()
 		assert.Empty(t, got)
 		assert.NoError(t, err)
 	})
 }
 
-func createTempFile(t *testing.T) *os.File {
-	t.Helper()
+func TestUnitSetGenresFilter(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		genres  q.Genres
+		want    string
+		wantErr bool
+	}{
+		{
+			desc:   "return one genre ID",
+			genres: q.Genres{"horror"},
+			want:   "with_genres=27",
+		},
+		{
+			desc:   "return many genre IDs",
+			genres: q.Genres{"horror", "comedy"},
+			want:   "with_genres=27,35",
+		},
+		{
+			desc:    "return filter error when not allowed genre",
+			genres:  q.Genres{"invalid"},
+			wantErr: true,
+		},
+	}
 
-	file, err := os.CreateTemp("", "test.env")
-	assert.NoError(t, err)
-	t.Cleanup(func() {
-		file.Close()
-		os.Remove(file.Name())
-	})
-
-	return file
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			query := q.QueryParams{Genres: &tc.genres}
+			got, err := query.SetGenresFilter()
+			switch {
+			case tc.wantErr:
+				var want *q.FilterError
+				assert.Empty(t, got)
+				assert.ErrorAs(t, err, &want)
+			default:
+				assert.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
 }

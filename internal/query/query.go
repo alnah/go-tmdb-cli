@@ -1,13 +1,11 @@
-package tmdb
+package query
 
 import (
-	"bytes"
 	"fmt"
-	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/spf13/viper"
 	"golang.org/x/exp/constraints"
 )
 
@@ -22,19 +20,29 @@ const (
 	maxAverage    float64 = 10.0
 )
 
-func GetTMDBToken(filepath string) (string, error) {
-	byt, err := os.ReadFile(filepath)
-	if err != nil {
-		return "", err
-	}
-
-	viper.SetConfigType("ENV")
-	if err = viper.ReadConfig(bytes.NewBuffer(byt)); err != nil {
-		return "", err
-	}
-
-	return viper.GetString("TOKEN"), nil
+var genreMap = map[string]int{
+	"action":          28,
+	"adventure":       12,
+	"animation":       16,
+	"comedy":          35,
+	"crime":           80,
+	"documentary":     99,
+	"drama":           18,
+	"family":          10751,
+	"fantasy":         14,
+	"history":         36,
+	"horror":          27,
+	"music":           10402,
+	"mystery":         9648,
+	"romance":         10749,
+	"science-fiction": 878,
+	"tv-movie":        10770,
+	"thriller":        53,
+	"war":             10752,
+	"western":         37,
 }
+
+type Genres []string
 
 type Date struct {
 	StartDate   string
@@ -51,23 +59,25 @@ type Average struct {
 }
 
 type Vote struct {
-	StartVotes  int
+	StartVote   int
 	StartOption string
-	EndVotes    int
+	EndVote     int
 	EndOption   string
 }
 
 type QueryParams struct {
 	MovieListPath string
 	Language      string
+	MaxItems      int
 	Page          int
 	Year          int
 	Date          *Date
 	Average       *Average
 	Vote          *Vote
+	Genres        *Genres
 }
 
-func (qp QueryParams) BuildURL() (string, error) {
+func (qp QueryParams) BuildQuery() (string, error) {
 	var query strings.Builder
 	query.WriteString(BaseURL)
 
@@ -91,6 +101,7 @@ func (qp QueryParams) BuildURL() (string, error) {
 		{qp.SetDateFilter},
 		{qp.SetAverageFilter},
 		{qp.SetVoteFilter},
+		{qp.SetGenresFilter},
 	}
 
 	for _, filter := range filters {
@@ -110,7 +121,7 @@ type FilterError struct {
 }
 
 func (e FilterError) Error() string {
-	return fmt.Sprintf("%s: %s.", e.Filter, e.Message)
+	return fmt.Sprintf("%s %s.", e.Filter, e.Message)
 }
 
 func (qp QueryParams) SetMoviesList() (string, error) {
@@ -125,15 +136,11 @@ func (qp QueryParams) SetMoviesList() (string, error) {
 		}
 	}
 
-	var paths string
-	for _, p := range wantPaths {
-		paths += `"` + p + `"` + ", or "
-	}
-	paths = strings.ReplaceAll(paths, "_", " ")
-	paths = strings.TrimSuffix(paths, ", or ")
+	allowedPaths := allowedValues(wantPaths)
+	allowedPaths = strings.ReplaceAll(allowedPaths, "_", " ")
 	return "", &FilterError{
-		Filter:  "MoviesList",
-		Message: fmt.Sprintf("Path must be %v", paths),
+		Filter:  "Movies List",
+		Message: fmt.Sprintf("must be %s", allowedPaths),
 	}
 }
 
@@ -145,7 +152,7 @@ func (qp *QueryParams) SetLanguage() (string, error) {
 	if len(qp.Language) != 2 {
 		return "", &FilterError{
 			Filter:  "Language",
-			Message: "Must be a valid ISO 639-1 language code",
+			Message: "must be a valid ISO 639-1 language code",
 		}
 	}
 
@@ -189,7 +196,7 @@ func (qp QueryParams) SetDateFilter() (string, error) {
 			if err != nil {
 				return "", &FilterError{
 					Filter:  "Date",
-					Message: `Date value must be a valid "YYYY-MM-DD" format`,
+					Message: `value must be a valid "YYYY-MM-DD" format`,
 				}
 			}
 
@@ -229,7 +236,7 @@ func (qp QueryParams) SetVoteFilter() (string, error) {
 	}
 
 	vote := *qp.Vote
-	for _, v := range []int{vote.StartVotes, vote.EndVotes} {
+	for _, v := range []int{vote.StartVote, vote.EndVote} {
 		if v != 0 {
 			if err := validateRange(v, minInt, maxInt, "Vote"); err != nil {
 				return "", err
@@ -240,15 +247,63 @@ func (qp QueryParams) SetVoteFilter() (string, error) {
 	return handleGteOrLte(vote, "vote_count", "Vote")
 }
 
+func (qp QueryParams) SetGenresFilter() (string, error) {
+	if qp.Genres == nil {
+		return "", nil
+	}
+
+	allGenres := getKeys(genreMap)
+	allowedGenres := allowedValues(allGenres)
+
+	var formattedGenres Genres
+	for _, g := range *qp.Genres {
+		id, found := genreMap[g]
+
+		if !found {
+			return "", &FilterError{
+				Filter:  "Genres",
+				Message: fmt.Sprintf("must be %s", allowedGenres),
+			}
+		}
+
+		formattedGenres = append(formattedGenres, strconv.Itoa(id))
+	}
+
+	return fmt.Sprintf("with_genres=%s", strings.Join(formattedGenres, ",")), nil
+}
+
 func validateRange[T constraints.Ordered](val, min, max T, filter string) error {
 	if val < min || val > max {
-		message := "Must be between %v and %v"
+		message := "must be between %v and %v"
 		return &FilterError{
 			Filter:  filter,
 			Message: fmt.Sprintf(message, min, max),
 		}
 	}
 	return nil
+}
+
+func getKeys(hashmap map[string]int) []string {
+	keys := make([]string, len(hashmap))
+	i := 0
+	for k := range hashmap {
+		keys[i] = k
+		i++
+	}
+
+	return keys
+}
+
+func allowedValues(values []string) string {
+	var formatted string
+
+	formatted = strings.Join(values, ", ")
+	lastIndex := strings.LastIndex(formatted, ", ")
+	if lastIndex != -1 {
+		formatted = formatted[:lastIndex] + ", or " + formatted[lastIndex+2:]
+	}
+
+	return formatted
 }
 
 func handleGteOrLte[T any](structure T, param, filter string) (string, error) {
@@ -264,8 +319,8 @@ func handleGteOrLte[T any](structure T, param, filter string) (string, error) {
 		endValue = fmt.Sprintf("%.1f", v.EndAverage)
 		startOption, endOption = v.StartOption, v.EndOption
 	case Vote:
-		startValue = fmt.Sprintf("%d", v.StartVotes)
-		endValue = fmt.Sprintf("%d", v.EndVotes)
+		startValue = fmt.Sprintf("%d", v.StartVote)
+		endValue = fmt.Sprintf("%d", v.EndVote)
 		startOption, endOption = v.StartOption, v.EndOption
 	}
 

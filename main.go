@@ -7,63 +7,68 @@ import (
 	"io"
 	"net/http"
 
-	i "github.com/alnah/go-tmdb-cli/internal"
+	c "github.com/alnah/go-tmdb-cli/internal/config"
+	q "github.com/alnah/go-tmdb-cli/internal/query"
+
 	"github.com/olekukonko/tablewriter"
 )
 
-type Result struct {
-	Id            int     `json:"id"`
-	Date          string  `json:"release_date"`
-	OriginalTitle string  `json:"original_title"`
-	Title         string  `json:"title"`
-	Average       float64 `json:"vote_average"`
-	Votes         int     `json:"vote_count"`
-}
+type (
+	Results []Result
+	Result  struct {
+		Id            int     `json:"id"`
+		Date          string  `json:"release_date"`
+		OriginalTitle string  `json:"original_title"`
+		Title         string  `json:"title"`
+		Average       float64 `json:"vote_average"`
+		Votes         int     `json:"vote_count"`
+	}
+)
 
 type Response struct {
-	Page         int      `json:"page"`
-	Results      []Result `json:"results"`
-	TotalPages   int      `json:"total_pages"`
-	TotalResults int      `json:"total_results"`
+	Results      Results `json:"results"`
+	Page         int     `json:"page"`
+	TotalPages   int     `json:"total_pages"`
+	TotalResults int     `json:"total_results"`
 }
 
 func main() {
-	token, err := i.GetTMDBToken(".env")
+	token, err := c.GetTMDBToken(".env")
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 
-	query := &i.QueryParams{
-		Page:     1,
-		Language: "fr",
-		Date: &i.Date{
-			StartDate: "1940-01-01", StartOption: "gte",
-			EndDate: "1950-01-01", EndOption: "lte",
+	query := &q.QueryParams{
+		MaxItems: 1,
+		Language: "en",
+		Genres:   &q.Genres{"comedy", "horror", "drama"},
+		Date: &q.Date{
+			StartDate: "1888-01-01", StartOption: "gte",
+			EndDate: "2025-01-26", EndOption: "lte",
 		},
-		Average: &i.Average{
-			StartAverage: 7.0, StartOption: "gte",
+		Average: &q.Average{
+			StartAverage: 7, StartOption: "gte",
 		},
-		Vote: &i.Vote{
-			StartVotes: 200, StartOption: "gte",
+		Vote: &q.Vote{
+			StartVote: 100, StartOption: "gte",
 		},
 	}
 
-	url, err := query.BuildURL()
+	allResults, err := fetch(*query, token)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 
-	response := fetch(url, token)
-	table := renderTable(response)
+	table := renderTable(allResults)
 
-	if len(response.Results) == 0 {
+	if len(allResults) == 0 {
 		fmt.Println("No results.")
 	} else {
 		fmt.Println(table)
 	}
 }
 
-func renderTable(response Response) string {
+func renderTable(results Results) string {
 	var buffer bytes.Buffer
 	table := tablewriter.NewWriter(&buffer)
 	table.SetHeader([]string{
@@ -74,7 +79,7 @@ func renderTable(response Response) string {
 		"Votes",
 	})
 
-	for _, r := range response.Results {
+	for _, r := range results {
 		table.Append([]string{
 			r.Title,
 			r.OriginalTitle,
@@ -88,22 +93,66 @@ func renderTable(response Response) string {
 	return buffer.String()
 }
 
-func fetch(url string, token string) Response {
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Add("accept", "application/json")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Println(err.Error())
+func fetch(query q.QueryParams, token string) (Results, error) {
+	if query.Page == 0 {
+		query.Page = 1
 	}
-	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
+
+	if query.MaxItems == 0 {
+		query.MaxItems = 50
+	}
+
+	var url string
+	url, err := query.BuildQuery()
+	if err != nil {
+		return Results{}, err
+	}
+
+	req, err := newRequest("GET", url, token)
+	if err != nil {
+		return Results{}, err
+	}
 
 	var data Response
-	if err = json.Unmarshal(body, &data); err != nil {
-		fmt.Println(err.Error())
+	var allResults Results
+	for {
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return Results{}, err
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+
+		if err = json.Unmarshal(body, &data); err != nil {
+			return Results{}, err
+		}
+
+		allResults = append(allResults, data.Results...)
+		if len(allResults) > query.MaxItems || query.Page > data.TotalPages {
+			break
+		}
+
+		query.Page++
+		url, _ = query.BuildQuery()
+		req, err = newRequest("GET", url, token)
+		if err != nil {
+			return Results{}, err
+		}
 	}
 
-	return data
+	if len(allResults) > query.MaxItems {
+		allResults = allResults[:query.MaxItems]
+	}
+
+	return allResults, nil
+}
+
+func newRequest(method, url, token string) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	return req, nil
 }
