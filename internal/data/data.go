@@ -92,6 +92,7 @@ func (m Movies) sort(order string, compare func(i, j int) bool) (Movies, error) 
 		if order == "asc" {
 			return compare(i, j)
 		}
+
 		return !compare(i, j)
 	})
 

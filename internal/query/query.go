@@ -42,40 +42,45 @@ var genreMap = map[string]int{
 	"western":         37,
 }
 
-type Genres []string
+type (
+	Query interface {
+		BuildQuery() (string, error)
+	}
 
-type Date struct {
-	StartDate   string
-	StartOption string
-	EndDate     string
-	EndOption   string
-}
+	Genres []string
 
-type Average struct {
-	StartAverage float64
-	StartOption  string
-	EndAverage   float64
-	EndOption    string
-}
+	Date struct {
+		StartDate   string
+		StartOption string
+		EndDate     string
+		EndOption   string
+	}
 
-type Vote struct {
-	StartVote   int
-	StartOption string
-	EndVote     int
-	EndOption   string
-}
+	Average struct {
+		StartAverage float64
+		StartOption  string
+		EndAverage   float64
+		EndOption    string
+	}
 
-type QueryParams struct {
-	MovieListPath string
-	Language      string
-	MaxItems      int
-	Page          int
-	Year          int
-	Date          *Date
-	Average       *Average
-	Vote          *Vote
-	Genres        *Genres
-}
+	Vote struct {
+		StartVote   int
+		StartOption string
+		EndVote     int
+		EndOption   string
+	}
+
+	QueryParams struct {
+		MovieListPath string
+		Language      string
+		MaxItems      int
+		Year          int
+		Date          *Date
+		Average       *Average
+		Vote          *Vote
+		Genres        *Genres
+	}
+)
 
 func (qp QueryParams) BuildQuery() (string, error) {
 	var query strings.Builder
@@ -96,7 +101,6 @@ func (qp QueryParams) BuildQuery() (string, error) {
 	}{
 		{qp.SetMoviesList},
 		{qp.SetLanguage},
-		{qp.SetPageFilter},
 		{qp.SetYearFilter},
 		{qp.SetDateFilter},
 		{qp.SetAverageFilter},
@@ -157,18 +161,6 @@ func (qp *QueryParams) SetLanguage() (string, error) {
 	}
 
 	return fmt.Sprintf("with_original_language=%s", qp.Language), nil
-}
-
-func (qp QueryParams) SetPageFilter() (string, error) {
-	if qp.Page == 0 {
-		return "", nil
-	}
-
-	if err := validateRange(qp.Page, minInt, maxInt, "Page"); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("page=%d", qp.Page), nil
 }
 
 func (qp QueryParams) SetYearFilter() (string, error) {

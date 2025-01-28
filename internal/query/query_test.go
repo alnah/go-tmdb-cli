@@ -19,15 +19,13 @@ func TestUnitBuildQuery(t *testing.T) {
 			{
 				desc: "page year date average",
 				query: &q.QueryParams{
-					Page:    2,
 					Year:    2000,
 					Date:    &q.Date{StartDate: "2000-06-01", StartOption: "gte"},
 					Average: &q.Average{StartAverage: 8.0, StartOption: "gte"},
 					Vote:    &q.Vote{StartVote: 1000, StartOption: "gte"},
 				},
 				want: q.BaseURL + q.DiscoverURL +
-					"page=2" +
-					"&primary_release_year=2000" +
+					"primary_release_year=2000" +
 					"&primary_release_date.gte=2000-06-01" +
 					"&vote_average.gte=8.0&vote_count.gte=1000",
 			},
@@ -210,46 +208,6 @@ func TestUnitSetLanguage(t *testing.T) {
 		assert.Empty(t, got)
 		assert.NoError(t, err)
 	})
-}
-
-func TestUnitSetPageFilter(t *testing.T) {
-	testCases := []struct {
-		desc    string
-		value   int
-		want    string
-		wantErr bool
-	}{
-		{
-			desc:  "return page",
-			value: 20,
-			want:  "page=20",
-		},
-		{
-			desc:    "return empty string if no page",
-			wantErr: false,
-		},
-		{
-			desc:    "return filter error if out of range",
-			value:   2147483648, // out of range
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			query := &q.QueryParams{Page: tc.value}
-			got, err := query.SetPageFilter()
-			switch {
-			case tc.wantErr:
-				var want *q.FilterError
-				assert.Empty(t, got)
-				assert.ErrorAs(t, err, &want)
-			default:
-				assert.NoError(t, err)
-				assert.Equal(t, tc.want, got)
-			}
-		})
-	}
 }
 
 func TestUnitSetYearFilter(t *testing.T) {

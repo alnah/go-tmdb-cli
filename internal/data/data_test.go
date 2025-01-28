@@ -4,36 +4,15 @@ import (
 	"testing"
 
 	d "github.com/alnah/go-tmdb-cli/internal/data"
+	tf "github.com/alnah/go-tmdb-cli/test/fake"
+
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	fakeMovie1 = d.Movie{
-		Id:            1,
-		Date:          "2023-01-01",
-		OriginalTitle: "L'Aube de l'Aventure",
-		Title:         "Epic Journey Begins",
-		Average:       8.5,
-		Votes:         100,
-	}
-
-	fakeMovie2 = d.Movie{
-		Id:            2,
-		Date:          "2023-02-01",
-		OriginalTitle: "Rise of the Heroes",
-		Title:         "Rise of the Heroes",
-		Average:       7.0,
-		Votes:         50,
-	}
-
-	fakeMovie3 = d.Movie{
-		Id:            3,
-		Date:          "2023-03-01",
-		OriginalTitle: "O Confronto Final",
-		Title:         "Clash of Titans",
-		Average:       9.0,
-		Votes:         200,
-	}
+	fakeMovie1 = tf.FakeMovies[0]
+	fakeMovie2 = tf.FakeMovies[1]
+	fakeMovie3 = tf.FakeMovies[2]
 )
 
 func TestUnitSortError(t *testing.T) {
