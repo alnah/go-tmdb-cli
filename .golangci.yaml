@@ -1,0 +1,130 @@
+# Configuration for golangci-lint - Go language linter aggregator
+# Full documentation: https://golangci-lint.run/usage/configuration/
+
+# enable: List of enabled linters with brief descriptions
+enable:
+  - bodyclose # Checks whether HTTP response body is closed successfully
+  - copyloopvar # Detects loop variables being copied in Go concurrency patterns
+  - depguard # Blocks usage of forbidden packages (e.g. deprecated)
+  - dogsled # Checks for declarations with too many blank identifiers
+  - dupword # Finds duplicated words in text (comments/documentation)
+  - durationcheck # Validates time.Duration values and expressions
+  - errcheck # Ensures error return values are properly handled
+  - errchkjson # Checks for common JSON encoding/decoding errors
+  - gocritic # Provides advanced code analysis and style checks
+  - gocyclo # Measures code complexity (cyclomatic complexity)
+  - gofumpt # Enforces stricter code formatting than gofmt
+  - goimports # Handles imports formatting and management
+  - gosec # Security-focused static analysis (gas successor)
+  - gosimple # Detects code that could be simplified
+  - govet # Official Go vet tool for correctness checks
+  - ineffassign # Finds ineffective assignments in code
+  - lll # Enforces maximum line length
+  - misspell # Finds common spelling mistakes in comments
+  - nakedret # Warns about naked returns in functions
+  - nilerr # Detects nil error returns that should be checked
+  - nolintlint # Checks validity of //nolint directives
+  - perfsprint # Suggests optimal string formatting methods
+  - prealloc # Detects slice declarations that could be pre-allocated
+  - predeclared # Warns about shadowing predeclared identifiers
+  - reassign # Checks for package-level variable reassignments
+  - revive # Fast, configurable, extensible Go linter
+  - staticcheck # Advanced static analysis with multiple checks
+  - stylecheck # Style-related checks (similar to go/style check)
+  - tenv # Checks for proper test environment handling
+  - thelper # Verifies test helper function signatures
+  - tparallel # Detects inappropriate use of t.Parallel()
+  - typecheck # Verifies Go code type correctness
+  - unconvert # Detects unnecessary type conversions
+  - unparam # Finds unused function parameters
+  - unused # Reports unused constants, variables, functions etc.
+  - usestdlibvars # Encourages use of stdlib-defined variables
+  - wastedassign # Finds wasted assignments that could be removed
+
+# linters-settings: Custom configurations for specific linters
+linters-settings:
+  depguard:
+    # Block deprecated packages and suggest alternatives
+    rules:
+      main:
+        deny:
+          - pkg: "io/ioutil"
+            desc: The io/ioutil package has been deprecated. For more details,
+              see https://go.dev/doc/go1.16#ioutil
+
+  gocyclo:
+    min-complexity: 10 # Minimum cyclomatic complexity to trigger warnings
+
+  govet:
+    enable:
+      - shadow # Enable variable shadowing detection
+    settings:
+      shadow:
+        strict: true # Enable strict shadowing checks
+
+  lll:
+    line-length: 120 # Maximum allowed line length (characters)
+
+  nakedret:
+    command: nakedret # Custom command configuration
+    pattern: ^(?P<path>.*?\\.go):(?P<line>\\d+)\\s*(?P<message>.*)$
+
+  revive:
+    # Custom rule configurations for revive linter
+    rules:
+      - name: context-as-argument # Context should be first argument
+        severity: error
+      - name: error-return # Proper error return checking
+        severity: warning
+      - name: import-shadowing # Avoid import name shadowing
+        severity: warning
+        disabled: false
+      - name: empty-block # Empty code blocks detection
+        severity: warning
+        disabled: false
+      - name: empty-lines # Excessive empty line detection
+        severity: warning
+        disabled: false
+      - name: use-any # Prefer any over interface{}
+        severity: warning
+        disabled: false
+
+# issues: Configuration for issue management and filtering
+issues:
+  exclude-use-default: false # Don't use default excludes
+  exclude:
+    - parameter .* always receives # Ignore unused parameter warnings
+
+  # Rules for excluding specific linter messages
+  exclude-rules:
+    - text: "func name will be used as test\\.Test.* by other packages, and that stutters; consider calling this"
+      linters:
+        - revive # Allow test function naming conventions
+    - text: "Use of unsafe calls should be audited"
+      linters:
+        - gosec # Permit controlled unsafe usage
+    - text: "Subprocess launch(ed with variable|ing should be audited)"
+      linters:
+        - gosec # Allow variable-based command execution
+    - text: "Potential file inclusion via variable"
+      linters:
+        - gosec # Permit dynamic file paths
+    - text: "package-comments: should have a package comment"
+      linters:
+        - revive # Don't require package comments
+    - text: "SA1019: (assert|cmp|is)\\.ErrorType is deprecated"
+      linters:
+        - staticcheck # Ignore deprecation warnings from test helpers
+    - path: _test\.go # Apply to test files
+      linters:
+        - errcheck # Allow unchecked errors in tests
+    - text: "ST1000: at least one file in a package should have a package comment"
+      linters:
+        - stylecheck # Don't require package comments
+    - text: '^shadow: declaration of "(err|ok)" shadows declaration'
+      linters:
+        - govet # Allow common shadowing patterns
+
+# Global issue limits
+max-issues-per-linter: 0 # Don't limit issues per linter
+max-same-issues: 0 # Show all instances of the same issue
