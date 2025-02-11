@@ -667,7 +667,7 @@ func TestUniFetchTMDBResponse(t *testing.T) {
 	}
 }
 
-func TestUnitTestUniFetchTMDBResponse_Retry(t *testing.T) {
+func TestUnitTestUniTFetchTMDBResponse_Retry(t *testing.T) {
 	// Arrange
 	attempts := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
