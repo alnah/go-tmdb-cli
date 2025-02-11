@@ -8,6 +8,7 @@
 
 # Built binaries
 bin/
+dist/
 
 # Binaries for programs and plugins
 *.exe
@@ -174,4 +175,4 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,visualstudiocode,sublimetext,vim,go
+# End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,visualstudiocode,sublimetext,vim,go# Added by goreleaser init:
