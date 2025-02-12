@@ -174,7 +174,7 @@ func newHTTPClient(apiKey string) *httpClient {
 }
 
 // asyncFetchMovies efficiently retrieves multiple pages of movie results.
-func asyncFetchMovies(h *httpClient, url string, maxItems int) (movies, error) {
+func asyncFetchMovies(hc *httpClient, url string, maxItems int) (movies, error) {
 	if maxItems > APIMaxItems {
 		return movies{}, fmt.Errorf("validation error: movies can't be more than %d", APIMaxItems)
 	}
@@ -184,7 +184,7 @@ func asyncFetchMovies(h *httpClient, url string, maxItems int) (movies, error) {
 		wg         sync.WaitGroup
 	)
 	firstPageURL := fmt.Sprintf("%s&page=%d", url, firstPage)
-	firstRes, err := fetchTMDBResponse(h, firstPageURL)
+	firstRes, err := fetchTMDBResponse(hc, firstPageURL)
 	if err != nil {
 		return movies{}, err
 	}
@@ -199,7 +199,7 @@ func asyncFetchMovies(h *httpClient, url string, maxItems int) (movies, error) {
 		go func(p int) {
 			defer wg.Done()
 			fetchUrl := fmt.Sprintf("%s&page=%d", url, p)
-			pageRes, err := fetchTMDBResponse(h, fetchUrl)
+			pageRes, err := fetchTMDBResponse(hc, fetchUrl)
 			if err != nil {
 				errChan <- err
 				return
@@ -223,16 +223,16 @@ func asyncFetchMovies(h *httpClient, url string, maxItems int) (movies, error) {
 	return allResults.deduplicate(), nil
 }
 
-func (h *httpClient) setURL(url string) {
-	h.url = url
+func (hc *httpClient) setURL(url string) {
+	hc.url = url
 }
 
 // fetchTMDBResponse gets a single page of results from TMDB API.
-func fetchTMDBResponse(h *httpClient, url string) (tmdbResponse, error) {
-	h.setURL(url)
+func fetchTMDBResponse(hc *httpClient, url string) (tmdbResponse, error) {
+	hc.setURL(url)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tmdbRes, err := h.do(ctx)
+	tmdbRes, err := hc.do(ctx)
 	if err != nil {
 		return tmdbResponse{}, err
 	}
@@ -240,15 +240,15 @@ func fetchTMDBResponse(h *httpClient, url string) (tmdbResponse, error) {
 }
 
 // do retrieves movie data from TMDB with a retry mechanism based on exponential backoff.
-func (h *httpClient) do(ctx context.Context) (tmdbResponse, error) {
+func (hc *httpClient) do(ctx context.Context) (tmdbResponse, error) {
 	op := func() (*http.Response, error) {
-		req, err := http.NewRequestWithContext(ctx, h.Method, h.url, nil)
+		req, err := http.NewRequestWithContext(ctx, hc.Method, hc.url, nil)
 		if err != nil {
 			return nil, backoff.Permanent(fmt.Errorf("request error: %w", err))
 		}
-		req.Header.Add("Authorization", "Bearer "+h.APIKey)
+		req.Header.Add("Authorization", "Bearer "+hc.APIKey)
 		req.Header.Add("Content-Type", "application/json")
-		cli := newHTTPClient(h.APIKey)
+		cli := newHTTPClient(hc.APIKey)
 		res, err := cli.Client.Do(req)
 		if err != nil {
 			return nil, backoff.Permanent(fmt.Errorf("request error: %w", err))
