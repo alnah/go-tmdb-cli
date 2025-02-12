@@ -54,7 +54,7 @@ go-tmdb-cli discover -l=pt -y=1960,lte -w=comedy -a=9.0,lte -v=2000,lte -m=10 -s
 Fore more details:
 
 ```
-go-tmdb-cli [command] --help`.
+go-tmdb-cli [command] --help
 ```
 
 Run all tests and benchmarking:

@@ -146,7 +146,7 @@ func validateOrder(order string) error {
 }
 
 type (
-	// httpClient manages authenticated requests and error handling for TMDB API.
+	// httpClient manages authenticated requests and error handling for GitHub API.
 	httpClient struct {
 		url    string
 		APIKey string
@@ -174,7 +174,7 @@ func newHTTPClient(apiKey string) *httpClient {
 }
 
 // asyncFetchMovies efficiently retrieves multiple pages of movie results.
-func asyncFetchMovies(hc *httpClient, url string, maxItems int) (movies, error) {
+func asyncFetchMovies(h *httpClient, url string, maxItems int) (movies, error) {
 	if maxItems > APIMaxItems {
 		return movies{}, fmt.Errorf("validation error: movies can't be more than %d", APIMaxItems)
 	}
@@ -184,7 +184,7 @@ func asyncFetchMovies(hc *httpClient, url string, maxItems int) (movies, error) 
 		wg         sync.WaitGroup
 	)
 	firstPageURL := fmt.Sprintf("%s&page=%d", url, firstPage)
-	firstRes, err := fetchTMDBResponse(hc, firstPageURL)
+	firstRes, err := fetchTMDBResponse(h, firstPageURL)
 	if err != nil {
 		return movies{}, err
 	}
@@ -199,7 +199,7 @@ func asyncFetchMovies(hc *httpClient, url string, maxItems int) (movies, error) 
 		go func(p int) {
 			defer wg.Done()
 			fetchUrl := fmt.Sprintf("%s&page=%d", url, p)
-			pageRes, err := fetchTMDBResponse(hc, fetchUrl)
+			pageRes, err := fetchTMDBResponse(h, fetchUrl)
 			if err != nil {
 				errChan <- err
 				return
@@ -223,32 +223,32 @@ func asyncFetchMovies(hc *httpClient, url string, maxItems int) (movies, error) 
 	return allResults.deduplicate(), nil
 }
 
+func (h *httpClient) setURL(url string) {
+	h.url = url
+}
+
 // fetchTMDBResponse gets a single page of results from TMDB API.
-func fetchTMDBResponse(hc *httpClient, url string) (tmdbResponse, error) {
-	hc.setURL(url)
+func fetchTMDBResponse(h *httpClient, url string) (tmdbResponse, error) {
+	h.setURL(url)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tmdbRes, err := hc.do(ctx)
+	tmdbRes, err := h.do(ctx)
 	if err != nil {
 		return tmdbResponse{}, err
 	}
 	return tmdbRes, nil
 }
 
-func (hc *httpClient) setURL(url string) {
-	hc.url = url
-}
-
 // do retrieves movie data from TMDB with a retry mechanism based on exponential backoff.
-func (hc *httpClient) do(ctx context.Context) (tmdbResponse, error) {
+func (h *httpClient) do(ctx context.Context) (tmdbResponse, error) {
 	op := func() (*http.Response, error) {
-		req, err := http.NewRequestWithContext(ctx, hc.Method, hc.url, nil)
+		req, err := http.NewRequestWithContext(ctx, h.Method, h.url, nil)
 		if err != nil {
 			return nil, backoff.Permanent(fmt.Errorf("request error: %w", err))
 		}
-		req.Header.Add("Authorization", "Bearer "+hc.APIKey)
+		req.Header.Add("Authorization", "Bearer "+h.APIKey)
 		req.Header.Add("Content-Type", "application/json")
-		cli := newHTTPClient(hc.APIKey)
+		cli := newHTTPClient(h.APIKey)
 		res, err := cli.Client.Do(req)
 		if err != nil {
 			return nil, backoff.Permanent(fmt.Errorf("request error: %w", err))
