@@ -70,9 +70,9 @@ func newInfoCmd() *cobra.Command {
 		Short: "Display version number, author and licence",
 		Long:  "All software has a version, an author, and a license. These are the details for Go TMDB-CLI.",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Go TMDB-CLI v0.1.0")
+			cmd.Println("Go TMDB-CLI v1.0.0")
 			cmd.Println("Copyright (c) 2025 Alexis Nahan <alexis.nahan@gmail.com>")
-			cmd.Println("Licensed under the MIT License")
+			cmd.Println("Licensed under the Apache License v2.0")
 		},
 	}
 	return versionCmd

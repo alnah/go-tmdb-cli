@@ -45,7 +45,7 @@ build: install
 	@mkdir -p $(BIN)
 	@go build -o $(TARGET)
 
-release: check
+release: fmt lint test benchmark
 	$(info 📦 CREATING A NEW RELEASE...)
 	goreleaser release
 

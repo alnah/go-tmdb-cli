@@ -257,5 +257,5 @@ func TestIntegrationInfoCmd(t *testing.T) {
 	got, err := executeCommand(root, "info")
 	// Assert
 	assertNoError(t, err)
-	assertContains(t, got, []string{"v", "Alexis Nahan", "MIT"})
+	assertContains(t, got, []string{"v", "Alexis Nahan", "Apache"})
 }

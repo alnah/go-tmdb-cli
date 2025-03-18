@@ -146,7 +146,7 @@ func validateOrder(order string) error {
 }
 
 type (
-	// httpClient manages authenticated requests and error handling for TMDB API.
+	// httpClient manages authenticated requests and error handling for GitHub API.
 	httpClient struct {
 		url    string
 		APIKey string
@@ -223,6 +223,10 @@ func asyncFetchMovies(hc *httpClient, url string, maxItems int) (movies, error) 
 	return allResults.deduplicate(), nil
 }
 
+func (hc *httpClient) setURL(url string) {
+	hc.url = url
+}
+
 // fetchTMDBResponse gets a single page of results from TMDB API.
 func fetchTMDBResponse(hc *httpClient, url string) (tmdbResponse, error) {
 	hc.setURL(url)
@@ -233,10 +237,6 @@ func fetchTMDBResponse(hc *httpClient, url string) (tmdbResponse, error) {
 		return tmdbResponse{}, err
 	}
 	return tmdbRes, nil
-}
-
-func (hc *httpClient) setURL(url string) {
-	hc.url = url
 }
 
 // do retrieves movie data from TMDB with a retry mechanism based on exponential backoff.
