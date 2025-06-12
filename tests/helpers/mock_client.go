@@ -27,11 +27,11 @@ type MockHTTPClient struct {
 	mu          sync.RWMutex
 
 	// Behavior configuration
-	shouldTimeout  bool
-	shouldError    bool
-	errorMessage   string
-	delayDuration  time.Duration
-	rateLimitCount int
+	shouldTimeout bool
+	shouldError   bool
+	errorMessage  string
+	delayDuration time.Duration
+	// rateLimitCount int
 	rateLimitAfter int
 }
 
