@@ -1,4 +1,4 @@
-// tests/fixtures/configs.go
+// Package fixtures provides test data and configuration structures for the TMDB CLI test suite.
 package fixtures
 
 import (
@@ -7,7 +7,7 @@ import (
 	"github.com/alnah/tmdb-cli/internal"
 )
 
-// ValidConfig provides a valid configuration for testing
+// ValidConfig provides a valid configuration for testing.
 var ValidConfig = internal.Config{
 	APIKey:     "test-api-key-123456789",
 	BaseURL:    "https://api.themoviedb.org/3",
@@ -18,14 +18,14 @@ var ValidConfig = internal.Config{
 	Format:     "table",
 }
 
-// MinimalConfig provides minimal required configuration
+// MinimalConfig provides minimal required configuration.
 var MinimalConfig = internal.Config{
 	APIKey:  "test-key",
 	BaseURL: "https://api.example.com",
 	Timeout: 10 * time.Second,
 }
 
-// InvalidConfigs for testing validation
+// InvalidConfigs for testing validation.
 var InvalidConfigs = []struct {
 	Name   string
 	Config internal.Config
@@ -70,7 +70,7 @@ var InvalidConfigs = []struct {
 	},
 }
 
-// ConfigYAMLExamples for testing YAML configuration loading
+// ValidConfigYAML provides a valid YAML configuration for testing.
 var ValidConfigYAML = `
 api_key: "test-api-key-from-yaml"
 base_url: "https://api.themoviedb.org/3"
@@ -93,9 +93,7 @@ log_level: "warn"
 # Other fields will use defaults
 `
 
-// tests/fixtures/search_options.go
-
-// ValidSearchOptions provides valid search options for testing
+// ValidSearchOptions provides valid search options for testing.
 var ValidSearchOptions = internal.SearchOptions{
 	Query:         "Matrix",
 	Page:          1,
@@ -110,7 +108,7 @@ var ValidSearchOptions = internal.SearchOptions{
 	MaxItems:      20,
 }
 
-// InvalidSearchOptions for testing validation
+// InvalidSearchOptions for testing validation.
 var InvalidSearchOptions = []struct {
 	Name    string
 	Options internal.SearchOptions
@@ -157,9 +155,7 @@ var InvalidSearchOptions = []struct {
 	},
 }
 
-// tests/fixtures/format_options.go
-
-// FormatOptionsTestCases provides various format options for testing
+// FormatOptionsTestCases provides various format options for testing.
 var FormatOptionsTestCases = []struct {
 	Name     string
 	Options  internal.FormatOptions
@@ -207,9 +203,7 @@ var FormatOptionsTestCases = []struct {
 	},
 }
 
-// tests/fixtures/api_responses.go
-
-// APIResponseTestCases provides various API response scenarios
+// APIResponseTestCases provides various API response scenarios.
 var APIResponseTestCases = []struct {
 	Name           string
 	StatusCode     int
@@ -261,9 +255,7 @@ var APIResponseTestCases = []struct {
 	},
 }
 
-// tests/fixtures/command_test_cases.go
-
-// CommandTestCases provides test cases for CLI commands
+// CommandTestCases provides test cases for CLI commands.
 var CommandTestCases = []struct {
 	Name         string
 	Args         []string
@@ -352,16 +344,14 @@ var CommandTestCases = []struct {
 	},
 }
 
-// tests/fixtures/performance_data.go
-
-// PerformanceTestData provides data for performance/benchmark testing
+// PerformanceTestData provides data for performance/benchmark testing.
 var (
 	SmallMovieList  = ConvertedMovies[:1]
 	MediumMovieList = append(ConvertedMovies, ConvertedMovies...) // 6 movies
 	LargeMovieList  = make([]internal.Movie, 100)                 // Will be filled by test
 )
 
-// BenchmarkTestCases for performance testing
+// BenchmarkTestCases for performance testing.
 var BenchmarkTestCases = []struct {
 	Name   string
 	Movies []internal.Movie
@@ -384,9 +374,7 @@ var BenchmarkTestCases = []struct {
 	},
 }
 
-// tests/fixtures/error_scenarios.go
-
-// ErrorScenarios provides comprehensive error testing scenarios
+// ErrorScenarios provides comprehensive error testing scenarios.
 var ErrorScenarios = []struct {
 	Name        string
 	SetupError  string
@@ -425,9 +413,7 @@ var ErrorScenarios = []struct {
 	},
 }
 
-// tests/fixtures/pagination_data.go
-
-// PaginationTestData provides data for testing pagination scenarios
+// FirstPageResponse provides mock data for testing pagination scenarios.
 var FirstPageResponse = internal.TMDBResponse{
 	Page:         1,
 	TotalPages:   3,
@@ -449,7 +435,7 @@ var LastPageResponse = internal.TMDBResponse{
 	Results:      NowPlayingMoviesResponse.Results[:1],
 }
 
-// Cache test data
+// CacheTestScenarios provides test data for cache behavior validation.
 var CacheTestScenarios = []struct {
 	Name        string
 	CacheTTL    time.Duration
@@ -480,7 +466,7 @@ var CacheTestScenarios = []struct {
 	},
 }
 
-// Environment variable test data
+// EnvVarTestCases provides test data for environment variable configuration.
 var EnvVarTestCases = []struct {
 	Name     string
 	EnvVars  map[string]string
@@ -521,7 +507,7 @@ var EnvVarTestCases = []struct {
 	},
 }
 
-// Genre mapping test data
+// GenreTestCases provides test data for genre mapping functionality.
 var GenreTestCases = []struct {
 	Name        string
 	Input       []string

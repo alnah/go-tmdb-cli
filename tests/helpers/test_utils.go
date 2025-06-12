@@ -1,4 +1,4 @@
-// tests/helpers/test_utils.go
+// Package helpers provides reusable test utilities, assertions, and mock implementations for the TMDB CLI test suite.
 package helpers
 
 import (
@@ -15,7 +15,7 @@ import (
 	"github.com/alnah/tmdb-cli/internal"
 )
 
-// SetupTestConfig creates a test configuration with sensible defaults
+// SetupTestConfig creates a test configuration with sensible defaults.
 func SetupTestConfig() internal.Config {
 	return internal.Config{
 		APIKey:     "test-api-key-12345",
@@ -28,7 +28,7 @@ func SetupTestConfig() internal.Config {
 	}
 }
 
-// SetupTestConfigWithAPIKey creates test config with a real API key from environment
+// SetupTestConfigWithAPIKey creates test config with a real API key from environment.
 func SetupTestConfigWithAPIKey() internal.Config {
 	config := SetupTestConfig()
 	if apiKey := os.Getenv("TMDB_API_KEY"); apiKey != "" {
@@ -37,7 +37,7 @@ func SetupTestConfigWithAPIKey() internal.Config {
 	return config
 }
 
-// CreateTempConfigFile creates a temporary configuration file with given content
+// CreateTempConfigFile creates a temporary configuration file with given content.
 func CreateTempConfigFile(t *testing.T, content string) string {
 	t.Helper()
 
@@ -52,7 +52,7 @@ func CreateTempConfigFile(t *testing.T, content string) string {
 	return configPath
 }
 
-// CreateTempConfigFileWithCleanup creates a temp config file and returns cleanup function
+// CreateTempConfigFileWithCleanup creates a temp config file and returns cleanup function.
 func CreateTempConfigFileWithCleanup(content string) (string, func()) {
 	tempDir, err := os.MkdirTemp("", "tmdb-test-*")
 	if err != nil {
@@ -73,7 +73,7 @@ func CreateTempConfigFileWithCleanup(content string) (string, func()) {
 	return configPath, cleanup
 }
 
-// SetupTestEnv sets up test environment variables
+// SetupTestEnv sets up test environment variables.
 func SetupTestEnv(t *testing.T, envVars map[string]string) {
 	t.Helper()
 
@@ -97,7 +97,7 @@ func SetupTestEnv(t *testing.T, envVars map[string]string) {
 	})
 }
 
-// CaptureOutput captures stdout/stderr for testing output
+// CaptureOutput captures stdout/stderr for testing output.
 func CaptureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 	t.Helper()
 
@@ -143,7 +143,7 @@ func CaptureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 	return stdout, stderr
 }
 
-// SkipIfNoAPIKey skips test if TMDB_API_KEY is not set
+// SkipIfNoAPIKey skips test if TMDB_API_KEY is not set.
 func SkipIfNoAPIKey(t *testing.T) {
 	t.Helper()
 
@@ -152,7 +152,7 @@ func SkipIfNoAPIKey(t *testing.T) {
 	}
 }
 
-// SkipIfShort skips test if running with -short flag
+// SkipIfShort skips test if running with -short flag.
 func SkipIfShort(t *testing.T, reason string) {
 	t.Helper()
 
@@ -165,7 +165,7 @@ func SkipIfShort(t *testing.T, reason string) {
 	}
 }
 
-// RequireAPIKey panics if TMDB_API_KEY is not set (for tests that must run)
+// RequireAPIKey panics if TMDB_API_KEY is not set (for tests that must run).
 func RequireAPIKey(t *testing.T) string {
 	t.Helper()
 
@@ -176,7 +176,7 @@ func RequireAPIKey(t *testing.T) string {
 	return apiKey
 }
 
-// CreateTestSearchOptions creates test search options with defaults
+// CreateTestSearchOptions creates test search options with defaults.
 func CreateTestSearchOptions() internal.SearchOptions {
 	return internal.SearchOptions{
 		Query:         "test",
@@ -193,17 +193,16 @@ func CreateTestSearchOptions() internal.SearchOptions {
 	}
 }
 
-// CreateTestFormatOptions creates test format options with defaults
+// CreateTestFormatOptions creates test format options with defaults.
 func CreateTestFormatOptions() internal.FormatOptions {
 	return internal.FormatOptions{
-		Format:           "table",
-		UseOriginalTitle: false,
-		NoHeader:         false,
-		MaxWidth:         120,
+		Format:   internal.FormatTable,
+		NoHeader: false,
+		MaxWidth: 120,
 	}
 }
 
-// CreateSampleTMDBMovie creates a sample TMDB movie for testing
+// CreateSampleTMDBMovie creates a sample TMDB movie for testing.
 func CreateSampleTMDBMovie(id int, title string) TMDBMovie {
 	return TMDBMovie{
 		ID:            id,
@@ -220,7 +219,7 @@ func CreateSampleTMDBMovie(id int, title string) TMDBMovie {
 	}
 }
 
-// CreateSampleMovieList creates a list of sample movies for testing
+// CreateSampleMovieList creates a list of sample movies for testing.
 func CreateSampleMovieList(count int) []internal.Movie {
 	movies := make([]internal.Movie, count)
 	for i := range count {
@@ -241,7 +240,7 @@ func CreateSampleMovieList(count int) []internal.Movie {
 	return movies
 }
 
-// CreateSampleTMDBMovieList creates a list of sample TMDB movies
+// CreateSampleTMDBMovieList creates a list of sample TMDB movies.
 func CreateSampleTMDBMovieList(count int) []TMDBMovie {
 	movies := make([]TMDBMovie, count)
 	for i := range count {
@@ -250,7 +249,7 @@ func CreateSampleTMDBMovieList(count int) []TMDBMovie {
 	return movies
 }
 
-// TimeoutTest runs a test function with a timeout
+// TimeoutTest runs a test function with a timeout.
 func TimeoutTest(t *testing.T, timeout time.Duration, testFunc func()) {
 	t.Helper()
 
@@ -269,7 +268,7 @@ func TimeoutTest(t *testing.T, timeout time.Duration, testFunc func()) {
 	}
 }
 
-// RetryTest retries a test function until it passes or max attempts reached
+// RetryTest retries a test function until it passes or max attempts reached.
 func RetryTest(t *testing.T, maxAttempts int, testFunc func() error) {
 	t.Helper()
 
@@ -290,14 +289,14 @@ func RetryTest(t *testing.T, maxAttempts int, testFunc func() error) {
 	t.Fatalf("Test failed after %d attempts. Last error: %v", maxAttempts, lastErr)
 }
 
-// CompareStringSlices compares two string slices for equality
-func CompareStringSlices(a, b []string) bool {
-	if len(a) != len(b) {
+// CompareStringSlices compares two string slices for equality.
+func CompareStringSlices(firstSlice, secondSlice []string) bool {
+	if len(firstSlice) != len(secondSlice) {
 		return false
 	}
 
-	for i := range a {
-		if a[i] != b[i] {
+	for i := range firstSlice {
+		if firstSlice[i] != secondSlice[i] {
 			return false
 		}
 	}
@@ -305,12 +304,12 @@ func CompareStringSlices(a, b []string) bool {
 	return true
 }
 
-// ContainsString checks if a string slice contains a specific string
+// ContainsString checks if a string slice contains a specific string.
 func ContainsString(slice []string, item string) bool {
 	return slices.Contains(slice, item)
 }
 
-// FilterMoviesByRating filters movies by minimum rating
+// FilterMoviesByRating filters movies by minimum rating.
 func FilterMoviesByRating(movies []internal.Movie, minRating float64) []internal.Movie {
 	filtered := make([]internal.Movie, 0)
 	for _, movie := range movies {
@@ -321,7 +320,7 @@ func FilterMoviesByRating(movies []internal.Movie, minRating float64) []internal
 	return filtered
 }
 
-// FilterMoviesByYear filters movies by year
+// FilterMoviesByYear filters movies by year.
 func FilterMoviesByYear(movies []internal.Movie, year int) []internal.Movie {
 	filtered := make([]internal.Movie, 0)
 	for _, movie := range movies {
@@ -332,7 +331,7 @@ func FilterMoviesByYear(movies []internal.Movie, year int) []internal.Movie {
 	return filtered
 }
 
-// FindMovieByTitle finds a movie by title (case-insensitive)
+// FindMovieByTitle finds a movie by title (case-insensitive).
 func FindMovieByTitle(movies []internal.Movie, title string) *internal.Movie {
 	lowerTitle := strings.ToLower(title)
 	for _, movie := range movies {
@@ -343,7 +342,7 @@ func FindMovieByTitle(movies []internal.Movie, title string) *internal.Movie {
 	return nil
 }
 
-// ParseTableOutput parses table output and returns rows as string slices
+// ParseTableOutput parses table output and returns rows as string slices.
 func ParseTableOutput(output string) [][]string {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	rows := make([][]string, 0)
@@ -375,7 +374,7 @@ func ParseTableOutput(output string) [][]string {
 	return rows
 }
 
-// GetTestDataDir returns the path to test data directory
+// GetTestDataDir returns the path to test data directory.
 func GetTestDataDir(t *testing.T) string {
 	t.Helper()
 
@@ -398,7 +397,7 @@ func GetTestDataDir(t *testing.T) string {
 	return testDataDir
 }
 
-// LoadTestFixture loads a test fixture file
+// LoadTestFixture loads a test fixture file.
 func LoadTestFixture(t *testing.T, filename string) []byte {
 	t.Helper()
 
@@ -413,7 +412,7 @@ func LoadTestFixture(t *testing.T, filename string) []byte {
 	return data
 }
 
-// CreateTestLogFile creates a temporary log file for testing
+// CreateTestLogFile creates a temporary log file for testing.
 func CreateTestLogFile(t *testing.T) *os.File {
 	t.Helper()
 
@@ -430,7 +429,7 @@ func CreateTestLogFile(t *testing.T) *os.File {
 	return file
 }
 
-// AssertEventuallyTrue retries a condition until it becomes true or timeout
+// AssertEventuallyTrue retries a condition until it becomes true or timeout.
 func AssertEventuallyTrue(
 	t *testing.T,
 	condition func() bool,
@@ -456,7 +455,7 @@ func AssertEventuallyTrue(
 	}
 }
 
-// GetFreePort finds a free port for testing
+// GetFreePort finds a free port for testing.
 func GetFreePort(t *testing.T) int {
 	t.Helper()
 
@@ -465,21 +464,22 @@ func GetFreePort(t *testing.T) int {
 	return 8080 + int(t.Name()[0])%100 // Simple hash-based port
 }
 
-// Benchmark utilities
+// Benchmark utilities.
 
-// BenchmarkFunc is a helper for creating benchmark functions
-type BenchmarkFunc func(b *testing.B, size int)
+// BenchmarkFunc is a helper for creating benchmark functions.
+type BenchmarkFunc func(benchmarker *testing.B, size int)
 
-// RunBenchmarkSizes runs a benchmark with different input sizes
+// RunBenchmarkSizes runs a benchmark with different input sizes.
 func RunBenchmarkSizes(b *testing.B, sizes []int, benchFunc BenchmarkFunc) {
+	b.Helper()
 	for _, size := range sizes {
-		b.Run(fmt.Sprintf("size-%d", size), func(b *testing.B) {
-			benchFunc(b, size)
+		b.Run(fmt.Sprintf("size-%d", size), func(subBench *testing.B) {
+			benchFunc(subBench, size)
 		})
 	}
 }
 
-// MeasureMemory measures memory allocation for a function
+// MeasureMemory measures memory allocation for a function.
 func MeasureMemory(b *testing.B, fn func()) {
 	b.Helper()
 

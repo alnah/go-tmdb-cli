@@ -1,4 +1,4 @@
-// tests/helpers/mock_client.go
+// Package helpers provides reusable test utilities, assertions, and mock implementations for the TMDB CLI test suite.
 package helpers
 
 import (
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// MockHTTPClient provides a controllable HTTP client for testing
+// MockHTTPClient provides a controllable HTTP client for testing.
 type MockHTTPClient struct {
 	// Response configuration
 	responses       map[string]*http.Response
@@ -35,7 +35,7 @@ type MockHTTPClient struct {
 	rateLimitAfter int
 }
 
-// NewMockHTTPClient creates a new mock HTTP client
+// NewMockHTTPClient creates a new mock HTTP client.
 func NewMockHTTPClient() *MockHTTPClient {
 	return &MockHTTPClient{
 		responses: make(map[string]*http.Response),
@@ -47,7 +47,7 @@ func NewMockHTTPClient() *MockHTTPClient {
 	}
 }
 
-// Do implements the http.Client interface
+// Do implements the http.Client interface.
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -98,28 +98,28 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return m.cloneResponse(m.defaultResponse, req), nil
 }
 
-// SetResponse sets a mock response for a specific URL pattern
+// SetResponse sets a mock response for a specific URL pattern.
 func (m *MockHTTPClient) SetResponse(urlPattern string, response *http.Response) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.responses[urlPattern] = response
 }
 
-// SetDefaultResponse sets the default response for unmatched URLs
+// SetDefaultResponse sets the default response for unmatched URLs.
 func (m *MockHTTPClient) SetDefaultResponse(response *http.Response) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.defaultResponse = response
 }
 
-// SetTimeout configures timeout simulation
+// SetTimeout configures timeout simulation.
 func (m *MockHTTPClient) SetTimeout(shouldTimeout bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.shouldTimeout = shouldTimeout
 }
 
-// SetError configures error simulation
+// SetError configures error simulation.
 func (m *MockHTTPClient) SetError(shouldError bool, message string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -127,21 +127,21 @@ func (m *MockHTTPClient) SetError(shouldError bool, message string) {
 	m.errorMessage = message
 }
 
-// SetDelay configures response delay simulation
+// SetDelay configures response delay simulation.
 func (m *MockHTTPClient) SetDelay(duration time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delayDuration = duration
 }
 
-// SetRateLimit configures rate limiting simulation
+// SetRateLimit configures rate limiting simulation.
 func (m *MockHTTPClient) SetRateLimit(afterCalls int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.rateLimitAfter = afterCalls
 }
 
-// SetStatusCode sets status code for default response
+// SetStatusCode sets status code for default response.
 func (m *MockHTTPClient) SetStatusCode(code int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -154,7 +154,7 @@ func (m *MockHTTPClient) SetStatusCode(code int) {
 	}
 }
 
-// GetRequests returns all captured requests
+// GetRequests returns all captured requests.
 func (m *MockHTTPClient) GetRequests() []*http.Request {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -165,7 +165,7 @@ func (m *MockHTTPClient) GetRequests() []*http.Request {
 	return requests
 }
 
-// GetRequestURLs returns all captured request URLs
+// GetRequestURLs returns all captured request URLs.
 func (m *MockHTTPClient) GetRequestURLs() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -175,14 +175,14 @@ func (m *MockHTTPClient) GetRequestURLs() []string {
 	return urls
 }
 
-// GetCallCount returns the number of requests made
+// GetCallCount returns the number of requests made.
 func (m *MockHTTPClient) GetCallCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.callCount
 }
 
-// Reset clears all captured data and resets state
+// Reset clears all captured data and resets state.
 func (m *MockHTTPClient) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -198,20 +198,20 @@ func (m *MockHTTPClient) Reset() {
 	m.responses = make(map[string]*http.Response)
 }
 
-// HasRequestWithURL checks if a request was made to a specific URL pattern
+// HasRequestWithURL checks if a request was made to a specific URL pattern.
 func (m *MockHTTPClient) HasRequestWithURL(pattern string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, url := range m.requestURLs {
-		if strings.Contains(url, pattern) {
+	for _, reqURL := range m.requestURLs {
+		if strings.Contains(reqURL, pattern) {
 			return true
 		}
 	}
 	return false
 }
 
-// GetLastRequest returns the most recent request
+// GetLastRequest returns the most recent request.
 func (m *MockHTTPClient) GetLastRequest() *http.Request {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -222,9 +222,9 @@ func (m *MockHTTPClient) GetLastRequest() *http.Request {
 	return m.requests[len(m.requests)-1]
 }
 
-// Helper methods for response creation
+// Helper methods for response creation.
 
-// CreateJSONResponse creates an HTTP response with JSON body
+// CreateJSONResponse creates an HTTP response with JSON body.
 func CreateJSONResponse(statusCode int, data any) *http.Response {
 	jsonData, _ := json.Marshal(data)
 
@@ -238,13 +238,13 @@ func CreateJSONResponse(statusCode int, data any) *http.Response {
 	return resp
 }
 
-// CreateErrorResponse creates an HTTP error response
+// CreateErrorResponse creates an HTTP error response.
 func CreateErrorResponse(statusCode int, message string) *http.Response {
 	errorData := map[string]string{"error": message}
 	return CreateJSONResponse(statusCode, errorData)
 }
 
-// CreateTMDBResponse creates a mock TMDB API response
+// CreateTMDBResponse creates a mock TMDB API response.
 func CreateTMDBResponse(movies []TMDBMovie, page, totalPages int) *http.Response {
 	response := TMDBResponse{
 		Page:         page,
@@ -255,7 +255,7 @@ func CreateTMDBResponse(movies []TMDBMovie, page, totalPages int) *http.Response
 	return CreateJSONResponse(200, response)
 }
 
-// CreateGenresResponse creates a mock genres API response
+// CreateGenresResponse creates a mock genres API response.
 func CreateGenresResponse(genres []Genre) *http.Response {
 	response := TMDBGenresResponse{
 		Genres: genres,
@@ -263,7 +263,7 @@ func CreateGenresResponse(genres []Genre) *http.Response {
 	return CreateJSONResponse(200, response)
 }
 
-// Helper structures for TMDB responses
+// TMDBResponse represents a TMDB API response structure for testing.
 type TMDBResponse struct {
 	Page         int         `json:"page"`
 	Results      []TMDBMovie `json:"results"`
@@ -294,21 +294,31 @@ type Genre struct {
 	Name string `json:"name"`
 }
 
-// Utility functions for common test scenarios
+// Utility functions for common test scenarios.
 
-// SetupPopularMoviesResponse configures mock for popular movies endpoint
+// SetupPopularMoviesResponse configures mock for popular movies endpoint.
 func (m *MockHTTPClient) SetupPopularMoviesResponse(movies []TMDBMovie) {
 	response := CreateTMDBResponse(movies, 1, 1)
+	defer func() {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+	}()
 	m.SetResponse("/movie/popular", response)
 }
 
-// SetupSearchResponse configures mock for search endpoint
+// SetupSearchResponse configures mock for search endpoint.
 func (m *MockHTTPClient) SetupSearchResponse(query string, movies []TMDBMovie) {
 	response := CreateTMDBResponse(movies, 1, 1)
+	defer func() {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+	}()
 	m.SetResponse("/search/movie", response)
 }
 
-// SetupGenresResponse configures mock for genres endpoint
+// SetupGenresResponse configures mock for genres endpoint.
 func (m *MockHTTPClient) SetupGenresResponse() {
 	genres := []Genre{
 		{ID: 28, Name: "Action"},
@@ -319,31 +329,56 @@ func (m *MockHTTPClient) SetupGenresResponse() {
 		{ID: 53, Name: "Thriller"},
 	}
 	response := CreateGenresResponse(genres)
+	defer func() {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+	}()
 	m.SetResponse("/genre/movie/list", response)
 }
 
-// SetupErrorScenarios configures common error scenarios
+// SetupUnauthorizedError configures the mock client to return a 401 unauthorized error.
 func (m *MockHTTPClient) SetupUnauthorizedError() {
 	response := CreateErrorResponse(401, "Invalid API key")
+	defer func() {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+	}()
 	m.SetDefaultResponse(response)
 }
 
 func (m *MockHTTPClient) SetupRateLimitError() {
 	response := CreateErrorResponse(429, "Rate limit exceeded")
+	defer func() {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+	}()
 	m.SetDefaultResponse(response)
 }
 
 func (m *MockHTTPClient) SetupNotFoundError() {
 	response := CreateErrorResponse(404, "Not found")
+	defer func() {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+	}()
 	m.SetDefaultResponse(response)
 }
 
 func (m *MockHTTPClient) SetupServerError() {
 	response := CreateErrorResponse(500, "Internal server error")
+	defer func() {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+	}()
 	m.SetDefaultResponse(response)
 }
 
-// Private helper methods
+// Private helper methods.
 
 func (m *MockHTTPClient) generateCacheKey(u *url.URL) string {
 	// Generate a simple cache key from path and relevant query parameters
@@ -392,7 +427,7 @@ func (m *MockHTTPClient) cloneResponse(original *http.Response, req *http.Reques
 	return clone
 }
 
-// MockRoundTripper implements http.RoundTripper for more advanced scenarios
+// MockRoundTripper implements http.RoundTripper for more advanced scenarios.
 type MockRoundTripper struct {
 	client *MockHTTPClient
 }
@@ -411,7 +446,7 @@ func (m *MockRoundTripper) GetClient() *MockHTTPClient {
 	return m.client
 }
 
-// Helper function to create a real http.Client with mock transport
+// CreateMockHTTPClientWithTransport creates a real http.Client with mock transport for testing.
 func CreateMockHTTPClientWithTransport() (*http.Client, *MockHTTPClient) {
 	mockClient := NewMockHTTPClient()
 	transport := &MockRoundTripper{client: mockClient}

@@ -1,4 +1,4 @@
-// tests/helpers/assertions.go
+// Package helpers provides reusable test utilities, assertions, and mock implementations for the TMDB CLI test suite.
 package helpers
 
 import (
@@ -7,11 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alnah/tmdb-cli/internal"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/alnah/tmdb-cli/internal"
 )
 
-// AssertMovieValid validates that a movie has all required fields and sensible values
+// AssertMovieValid validates that a movie has all required fields and sensible values.
 func AssertMovieValid(t *testing.T, movie internal.Movie) {
 	t.Helper()
 
@@ -29,7 +30,7 @@ func AssertMovieValid(t *testing.T, movie internal.Movie) {
 	}
 }
 
-// AssertValidJSON validates that data is properly formatted JSON
+// AssertValidJSON validates that data is properly formatted JSON.
 func AssertValidJSON(t *testing.T, data []byte) {
 	t.Helper()
 
@@ -38,7 +39,7 @@ func AssertValidJSON(t *testing.T, data []byte) {
 	assert.NoError(t, err, "Output should be valid JSON")
 }
 
-// AssertValidMovieJSON validates JSON contains expected movie structure
+// AssertValidMovieJSON validates JSON contains expected movie structure.
 func AssertValidMovieJSON(t *testing.T, data []byte) {
 	t.Helper()
 
@@ -57,7 +58,7 @@ func AssertValidMovieJSON(t *testing.T, data []byte) {
 	}
 }
 
-// AssertSearchResultValid validates search result structure
+// AssertSearchResultValid validates search result structure.
 func AssertSearchResultValid(t *testing.T, result internal.SearchResult) {
 	t.Helper()
 
@@ -76,7 +77,7 @@ func AssertSearchResultValid(t *testing.T, result internal.SearchResult) {
 	}
 }
 
-// AssertConfigValid validates configuration structure
+// AssertConfigValid validates configuration structure.
 func AssertConfigValid(t *testing.T, config internal.Config) {
 	t.Helper()
 
@@ -89,7 +90,7 @@ func AssertConfigValid(t *testing.T, config internal.Config) {
 	assert.Contains(t, []string{"table", "json", "csv"}, config.Format, "Format should be valid")
 }
 
-// AssertGenreMapValid validates genre mapping correctness
+// AssertGenreMapValid validates genre mapping correctness.
 func AssertGenreMapValid(t *testing.T, genreMap map[string]int) {
 	t.Helper()
 
@@ -110,7 +111,7 @@ func AssertGenreMapValid(t *testing.T, genreMap map[string]int) {
 	}
 }
 
-// AssertFormatOptions validates format options
+// AssertFormatOptionsValid validates format options.
 func AssertFormatOptionsValid(t *testing.T, options internal.FormatOptions) {
 	t.Helper()
 
@@ -119,7 +120,7 @@ func AssertFormatOptionsValid(t *testing.T, options internal.FormatOptions) {
 	assert.Greater(t, options.MaxWidth, 0, "MaxWidth should be positive")
 }
 
-// AssertErrorContains checks that error contains expected message
+// AssertErrorContains checks that error contains expected message.
 func AssertErrorContains(t *testing.T, err error, expectedMsg string) {
 	t.Helper()
 
@@ -127,7 +128,7 @@ func AssertErrorContains(t *testing.T, err error, expectedMsg string) {
 	assert.Contains(t, err.Error(), expectedMsg, "Error should contain expected message")
 }
 
-// AssertNoErrorAndNotNil checks no error and result is not nil
+// AssertNoErrorAndNotNil checks no error and result is not nil.
 func AssertNoErrorAndNotNil(t *testing.T, result any, err error) {
 	t.Helper()
 
@@ -135,14 +136,14 @@ func AssertNoErrorAndNotNil(t *testing.T, result any, err error) {
 	assert.NotNil(t, result, "Result should not be nil")
 }
 
-// AssertSliceNotEmpty checks slice is not empty
+// AssertSliceNotEmpty checks slice is not empty.
 func AssertSliceNotEmpty(t *testing.T, slice any, msgAndArgs ...any) {
 	t.Helper()
 
 	assert.NotEmpty(t, slice, msgAndArgs...)
 }
 
-// AssertStringNotEmptyOrDefault checks string is not empty unless it's an expected default
+// AssertStringNotEmptyOrDefault checks string is not empty unless it's an expected default.
 func AssertStringNotEmptyOrDefault(t *testing.T, value, defaultValue, fieldName string) {
 	t.Helper()
 
@@ -151,7 +152,7 @@ func AssertStringNotEmptyOrDefault(t *testing.T, value, defaultValue, fieldName 
 	}
 }
 
-// AssertValidRating checks rating is within expected bounds
+// AssertValidRating checks rating is within expected bounds.
 func AssertValidRating(t *testing.T, rating float64) {
 	t.Helper()
 
@@ -159,7 +160,7 @@ func AssertValidRating(t *testing.T, rating float64) {
 	assert.LessOrEqual(t, rating, 10.0, "Rating should be <= 10")
 }
 
-// AssertValidYear checks year is reasonable
+// AssertValidYear checks year is reasonable.
 func AssertValidYear(t *testing.T, year int) {
 	t.Helper()
 
@@ -169,21 +170,21 @@ func AssertValidYear(t *testing.T, year int) {
 	}
 }
 
-// AssertValidPopularity checks popularity is non-negative
+// AssertValidPopularity checks popularity is non-negative.
 func AssertValidPopularity(t *testing.T, popularity float64) {
 	t.Helper()
 
 	assert.GreaterOrEqual(t, popularity, 0.0, "Popularity should be non-negative")
 }
 
-// AssertValidVoteCount checks vote count is non-negative
+// AssertValidVoteCount checks vote count is non-negative.
 func AssertValidVoteCount(t *testing.T, votes int) {
 	t.Helper()
 
 	assert.GreaterOrEqual(t, votes, 0, "Vote count should be non-negative")
 }
 
-// AssertTableOutput validates table output contains expected elements
+// AssertTableOutput validates table output contains expected elements.
 func AssertTableOutput(t *testing.T, output string) {
 	t.Helper()
 
@@ -201,7 +202,7 @@ func AssertTableOutput(t *testing.T, output string) {
 	assert.Greater(t, lines, 2, "Table should have header and content lines")
 }
 
-// AssertCSVOutput validates CSV output format
+// AssertCSVOutput validates CSV output format.
 func AssertCSVOutput(t *testing.T, output string, expectHeader bool) {
 	t.Helper()
 
@@ -231,7 +232,7 @@ func AssertCSVOutput(t *testing.T, output string, expectHeader bool) {
 	}
 }
 
-// AssertMovieListSorted checks if movies are sorted by specified criteria
+// AssertMovieListSorted checks if movies are sorted by specified criteria.
 func AssertMovieListSorted(t *testing.T, movies []internal.Movie, sortBy string, ascending bool) {
 	t.Helper()
 
@@ -275,7 +276,12 @@ func AssertMovieListSorted(t *testing.T, movies []internal.Movie, sortBy string,
 					"Movies should be sorted by popularity ascending",
 				)
 			} else {
-				assert.GreaterOrEqual(t, prev.Popularity, curr.Popularity, "Movies should be sorted by popularity descending")
+				assert.GreaterOrEqual(
+					t,
+					prev.Popularity,
+					curr.Popularity,
+					"Movies should be sorted by popularity descending",
+				)
 			}
 		case "title":
 			if ascending {
@@ -292,7 +298,7 @@ func AssertMovieListSorted(t *testing.T, movies []internal.Movie, sortBy string,
 	}
 }
 
-// Helper functions for common patterns
+// CreateMovieSlice creates a slice of movies with the given count and base name.
 func CreateMovieSlice(count int, baseName string) []internal.Movie {
 	movies := make([]internal.Movie, count)
 	for i := range count {
