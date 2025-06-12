@@ -29,6 +29,15 @@ dist/
 # Go workspace file
 go.work
 
+# Coverage reports
+coverage/
+*.coverage
+coverage.out
+coverage.html
+coverage.txt
+coverage-*.out
+coverage-*.html
+
 ### Linux ###
 *~
 
@@ -175,4 +184,49 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,visualstudiocode,sublimetext,vim,go# Added by goreleaser init:
+# End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,visualstudiocode,sublimetext,vim,go
+
+# Added by goreleaser init:
+# Additional exclusions for TMDB CLI project
+
+# Build artifacts
+bin/
+dist/
+
+# Release artifacts
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+
+# Local configuration files
+config.yaml
+config.yml
+tmdb.yaml
+tmdb.yml
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing and development
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
