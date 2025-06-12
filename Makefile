@@ -1,55 +1,64 @@
-BIN=bin/
-DIST=dist/
-SRC=$(shell find . -name "*.go")
-TARGET=$(BIN)/go-tmdb-cli
+# TMDB CLI Makefile
+.PHONY: all build test clean install run fmt vet
 
-ifeq (, $(shell which golangci-lint))
-	$(warning "could not find golangci-lint in $(PATH), \
-	run: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh")
-endif
+# Variables
+BINARY_NAME=tmdb
+CMD_DIR=./cmd
+MAIN_FILE=$(CMD_DIR)/main.go
+BUILD_DIR=./bin
 
-ifeq (, $(shell which goreleaser))
-	$(warning "could not find goreleaser in $(PATH), \
-	run: go install github.com/goreleaser/goreleaser/v2@latest")
-endif
+# Default target
+all: fmt vet test build
 
-.PHONY: fmt lint test install build clean
+# Build the binary
+build:
+	@echo "Building $(BINARY_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	go build -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_DIR)
 
-default: build
+# Run tests
+test:
+	@echo "Running tests..."
+	go test ./...
 
-all: install fmt lint test benchmark build
-
-install:
-	$(info 📥 DOWNLOADING DEPENDENCIES...)
-	go get -v ./...
-
+# Format code
 fmt:
-	$(info ✨ CHECKING CODE FORMATTING...)
-	@test -z $(shell gofmt -l $(SRC)) || (gofmt -d $(SRC); exit 1)
+	@echo "Formatting code..."
+	go fmt ./...
 
-lint:
-	$(info 🔍 RUNNING LINT TOOLS...)
-	golangci-lint run --config .golangci.yaml
+# Vet code
+vet:
+	@echo "Vetting code..."
+	go vet ./...
 
-test: install
-	$(info 🧪 RUNNING TESTS...)
-	go test -v ./... -cover
-
-benchmark: install
-	$(info 🚀 RUNNING BENCHMARKS...)
-	go test -bench=.
-
-build: install
-	$(info 🏗️ BUILDING THE PROJECT...)
-	@if [ -e "$(TARGET)" ]; then rm -rf "$(TARGET)"; fi
-	@mkdir -p $(BIN)
-	@go build -o $(TARGET)
-
-release: fmt lint test benchmark
-	$(info 📦 CREATING A NEW RELEASE...)
-	goreleaser release
-
+# Clean build artifacts
 clean:
-	$(info 🧹 CLEANING UP...)
-	rm -rf $(BIN)
-	rm -rf $(DIST)
+	@echo "Cleaning..."
+	rm -rf $(BUILD_DIR)
+	go clean
+
+# Install binary to GOPATH/bin
+install: build
+	@echo "Installing $(BINARY_NAME)..."
+	go install $(CMD_DIR)
+
+# Run the application
+run: build
+	@$(BUILD_DIR)/$(BINARY_NAME)
+
+# Development workflow
+dev: fmt vet test
+
+# Show help
+help:
+	@echo "Available targets:"
+	@echo "  all      - Format, vet, test, and build"
+	@echo "  build    - Build the binary"
+	@echo "  test     - Run tests"
+	@echo "  fmt      - Format code"
+	@echo "  vet      - Vet code"
+	@echo "  clean    - Clean build artifacts"
+	@echo "  install  - Install binary"
+	@echo "  run      - Build and run"
+	@echo "  dev      - Development workflow (fmt, vet, test)"
+	@echo "  help     - Show this help"
