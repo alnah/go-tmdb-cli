@@ -29,8 +29,8 @@ func handleList(
 		return err
 	}
 
-	if err := validateMaxItems(count); err != nil {
-		return err
+	if e := validateMaxItems(count); e != nil {
+		return e
 	}
 
 	// Show progress for larger requests
@@ -67,7 +67,7 @@ func handleList(
 	// Format and display
 	options := buildFormatOptions(flags)
 
-	if options.Format == "table" {
+	if options.Format == internal.FormatTable {
 		internal.FormatSummary(os.Stdout, movies, listType, flags.OriginalTitle)
 	}
 
@@ -86,7 +86,7 @@ func handleSearch(
 
 	// Parse search-specific flags
 	fs := flag.NewFlagSet("search", flag.ContinueOnError)
-	format := fs.String("format", "table", "Output format")
+	format := fs.String("format", internal.FormatTable, "Output format")
 	maxItems := fs.Int("max-items", 20, "Maximum items")
 	originalTitle := fs.Bool("original-title", false, "Show original titles")
 	noHeader := fs.Bool("no-header", false, "No table headers")
@@ -153,7 +153,7 @@ func handleSearch(
 		MaxWidth:         120,
 	}
 
-	if options.Format == "table" {
+	if options.Format == internal.FormatTable {
 		titleType := "titles"
 		if *originalTitle {
 			titleType = "original language titles"
@@ -172,7 +172,7 @@ func handleDiscover(
 ) error {
 	// Parse discover-specific flags
 	fs := flag.NewFlagSet("discover", flag.ContinueOnError)
-	format := fs.String("format", "table", "Output format")
+	format := fs.String("format", internal.FormatTable, "Output format")
 	maxItems := fs.Int("max-items", 20, "Maximum items")
 	originalTitle := fs.Bool("original-title", false, "Show original titles")
 	noHeader := fs.Bool("no-header", false, "No table headers")
@@ -260,7 +260,7 @@ func handleDiscover(
 		MaxWidth:         120,
 	}
 
-	if options.Format == "table" {
+	if options.Format == internal.FormatTable {
 		titleType := "titles"
 		if *originalTitle {
 			titleType = "original language titles"

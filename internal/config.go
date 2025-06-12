@@ -1,10 +1,11 @@
-// internal/config.go
+// Package internal provides core data structures and utilities for the TMDB CLI application.
 package internal
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ import (
 // 1. Command line flags (handled by caller)
 // 2. Environment variables
 // 3. Config file
-// 4. Defaults
+// 4. Defaults.
 func LoadConfig() (Config, error) {
 	// Start with defaults
 	config := DefaultConfig()
@@ -31,14 +32,14 @@ func LoadConfig() (Config, error) {
 	loadFromEnvironment(&config)
 
 	// Validate the final configuration
-	if err := validateConfig(config); err != nil {
+	if err := ValidateConfig(config); err != nil {
 		return config, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
 	return config, nil
 }
 
-// loadConfigFile attempts to load configuration from YAML file
+// loadConfigFile attempts to load configuration from YAML file.
 func loadConfigFile(config *Config) error {
 	configPaths := []string{
 		"./config.yaml",
@@ -60,7 +61,7 @@ func loadConfigFile(config *Config) error {
 	return nil
 }
 
-// loadFromEnvironment loads configuration from environment variables
+// loadFromEnvironment loads configuration from environment variables.
 func loadFromEnvironment(config *Config) {
 	// API Key
 	if apiKey := os.Getenv("TMDB_API_KEY"); apiKey != "" {
@@ -104,8 +105,8 @@ func loadFromEnvironment(config *Config) {
 	}
 }
 
-// validateConfig validates the loaded configuration
-func validateConfig(config Config) error {
+// ValidateConfig validates the loaded configuration.
+func ValidateConfig(config Config) error {
 	if config.APIKey == "" {
 		return fmt.Errorf(
 			"TMDB API key is required. Set TMDB_API_KEY environment variable or add to config file",
@@ -138,7 +139,7 @@ func validateConfig(config Config) error {
 	return nil
 }
 
-// CreateExampleConfig creates an example configuration file
+// CreateExampleConfig creates an example configuration file.
 func CreateExampleConfig(path string) error {
 	config := DefaultConfig()
 	config.APIKey = "your-api-key-here"
@@ -156,18 +157,20 @@ func CreateExampleConfig(path string) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	const dirPerm = 0o644
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return fmt.Errorf("create config directory: %w", err)
 	}
 
-	if err := os.WriteFile(path, []byte(example), 0o644); err != nil {
+	const filePerm = 0o644
+	if err := os.WriteFile(path, []byte(example), filePerm); err != nil {
 		return fmt.Errorf("write config file: %w", err)
 	}
 
 	return nil
 }
 
-// GetConfigHelp returns help text for configuration
+// GetConfigHelp returns help text for configuration.
 func GetConfigHelp() string {
 	return `Configuration can be set via:
 
@@ -199,7 +202,7 @@ Example config file:
 Get your API key from: https://www.themoviedb.org/settings/api`
 }
 
-// GetAPIKeyHelp returns help for getting an API key
+// GetAPIKeyHelp returns help for getting an API key.
 func GetAPIKeyHelp() string {
 	return `To get a TMDB API key:
 
@@ -216,17 +219,12 @@ Then set it via:
 - Or place it in ~/.tmdb/config.yaml`
 }
 
-// Helper function to check if slice contains string
+// Helper function to check if slice contains string.
 func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }
 
-// Logging helpers
+// Logging helpers.
 type LogLevel int
 
 const (
@@ -254,7 +252,7 @@ func ParseLogLevel(level string) LogLevel {
 	}
 }
 
-// Simple logger that respects the configuration
+// Simple logger that respects the configuration.
 type Logger struct {
 	level LogLevel
 }
@@ -263,25 +261,25 @@ func NewLogger(level LogLevel) *Logger {
 	return &Logger{level: level}
 }
 
-func (l *Logger) Debug(msg string, args ...interface{}) {
+func (l *Logger) Debug(msg string, args ...any) {
 	if l.level <= DebugLevel {
 		fmt.Fprintf(os.Stderr, "[DEBUG] "+msg+"\n", args...)
 	}
 }
 
-func (l *Logger) Info(msg string, args ...interface{}) {
+func (l *Logger) Info(msg string, args ...any) {
 	if l.level <= InfoLevel {
 		fmt.Fprintf(os.Stderr, "[INFO] "+msg+"\n", args...)
 	}
 }
 
-func (l *Logger) Warn(msg string, args ...interface{}) {
+func (l *Logger) Warn(msg string, args ...any) {
 	if l.level <= WarnLevel {
 		fmt.Fprintf(os.Stderr, "[WARN] "+msg+"\n", args...)
 	}
 }
 
-func (l *Logger) Error(msg string, args ...interface{}) {
+func (l *Logger) Error(msg string, args ...any) {
 	if l.level <= ErrorLevel {
 		fmt.Fprintf(os.Stderr, "[ERROR] "+msg+"\n", args...)
 	}

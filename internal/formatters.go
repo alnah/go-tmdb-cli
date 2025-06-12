@@ -1,4 +1,4 @@
-// internal/formatters.go
+// Package internal provides core data structures and utilities for the TMDB CLI application.
 package internal
 
 import (
@@ -13,7 +13,27 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
-// FormatOptions controls output formatting
+// Format constants.
+const (
+	FormatJSON  = "json"
+	FormatCSV   = "csv"
+	FormatTable = "table"
+	DefaultNA   = "N/A"
+)
+
+// Table column configuration constants.
+const (
+	TitleColumnWidth  = 40
+	GenresColumnWidth = 25
+	NumberColWidth    = 4
+	TitleColWidth     = 45
+	YearColWidth      = 6
+	RatingColWidth    = 8
+	VotesColWidth     = 8
+	GenresColWidth    = 25
+)
+
+// FormatOptions controls output formatting.
 type FormatOptions struct {
 	Format           string
 	UseOriginalTitle bool
@@ -21,35 +41,35 @@ type FormatOptions struct {
 	MaxWidth         int
 }
 
-// FormatMovies formats movies according to the specified format
+// FormatMovies formats movies according to the specified format.
 func FormatMovies(writer io.Writer, movies []Movie, options FormatOptions) error {
 	switch options.Format {
-	case "json":
+	case FormatJSON:
 		return formatJSON(writer, movies)
-	case "csv":
+	case FormatCSV:
 		return formatCSV(writer, movies, options)
-	case "table":
+	case FormatTable:
 		return formatTable(writer, movies, options)
 	default:
 		return fmt.Errorf("unsupported format: %s", options.Format)
 	}
 }
 
-// FormatSearchResult formats search results with pagination info
+// FormatSearchResult formats search results with pagination info.
 func FormatSearchResult(writer io.Writer, result SearchResult, options FormatOptions) error {
 	switch options.Format {
-	case "json":
+	case FormatJSON:
 		return formatSearchResultJSON(writer, result)
-	case "csv":
+	case FormatCSV:
 		return formatCSV(writer, result.Movies, options)
-	case "table":
+	case FormatTable:
 		return formatSearchResultTable(writer, result, options)
 	default:
 		return fmt.Errorf("unsupported format: %s", options.Format)
 	}
 }
 
-// JSON formatting
+// JSON formatting.
 func formatJSON(writer io.Writer, movies []Movie) error {
 	output := struct {
 		Movies []Movie `json:"movies"`
@@ -72,7 +92,7 @@ func formatSearchResultJSON(writer io.Writer, result SearchResult) error {
 	return encoder.Encode(result)
 }
 
-// CSV formatting
+// CSV formatting.
 func formatCSV(writer io.Writer, movies []Movie, options FormatOptions) error {
 	csvWriter := csv.NewWriter(writer)
 	defer csvWriter.Flush()
@@ -112,7 +132,7 @@ func formatCSV(writer io.Writer, movies []Movie, options FormatOptions) error {
 	return nil
 }
 
-// Table formatting
+// Table formatting.
 func formatTable(writer io.Writer, movies []Movie, options FormatOptions) error {
 	if len(movies) == 0 {
 		_, err := fmt.Fprintln(writer, "No movies found.")
@@ -135,10 +155,10 @@ func formatTable(writer io.Writer, movies []Movie, options FormatOptions) error 
 
 	// Add movie rows
 	for i, movie := range movies {
-		title := formatMovieTitle(movie, options.UseOriginalTitle, 40)
+		title := formatMovieTitle(movie, options.UseOriginalTitle, TitleColumnWidth)
 		rating := FormatRating(movie.Rating, movie.Votes)
 		votes := FormatVotes(movie.Votes)
-		genres := FormatGenres(movie.Genres, 25)
+		genres := FormatGenres(movie.Genres, GenresColumnWidth)
 
 		row := table.Row{
 			i + 1,
@@ -153,12 +173,12 @@ func formatTable(writer io.Writer, movies []Movie, options FormatOptions) error 
 
 	// Configure column properties
 	t.SetColumnConfigs([]table.ColumnConfig{
-		{Number: 1, Align: text.AlignCenter, WidthMax: 4}, // #
-		{Number: 2, Align: text.AlignLeft, WidthMax: 45},  // Title
-		{Number: 3, Align: text.AlignCenter, WidthMax: 6}, // Year
-		{Number: 4, Align: text.AlignRight, WidthMax: 8},  // Rating
-		{Number: 5, Align: text.AlignRight, WidthMax: 8},  // Votes
-		{Number: 6, Align: text.AlignLeft, WidthMax: 25},  // Genres
+		{Number: 1, Align: text.AlignCenter, WidthMax: NumberColWidth}, // #
+		{Number: 2, Align: text.AlignLeft, WidthMax: TitleColWidth},    // Title
+		{Number: 3, Align: text.AlignCenter, WidthMax: YearColWidth},   // Year
+		{Number: 4, Align: text.AlignRight, WidthMax: RatingColWidth},  // Rating
+		{Number: 5, Align: text.AlignRight, WidthMax: VotesColWidth},   // Votes
+		{Number: 6, Align: text.AlignLeft, WidthMax: GenresColWidth},   // Genres
 	})
 
 	t.Render()
@@ -173,14 +193,16 @@ func formatSearchResultTable(writer io.Writer, result SearchResult, options Form
 
 	// Show pagination info first
 	if result.TotalPages > 1 {
-		_, _ = fmt.Fprintf(writer, "Page %d of %d (%d total results)\n\n",
-			result.Page, result.TotalPages, result.TotalResults)
+		if _, err := fmt.Fprintf(writer, "Page %d of %d (%d total results)\n\n",
+			result.Page, result.TotalPages, result.TotalResults); err != nil {
+			return err
+		}
 	}
 
 	return formatTable(writer, result.Movies, options)
 }
 
-// Helper functions for table formatting
+// Helper functions for table formatting.
 func formatMovieTitle(movie Movie, useOriginal bool, maxWidth int) string {
 	var title string
 	if useOriginal && movie.OriginalTitle != "" && movie.OriginalTitle != movie.Title {
@@ -230,18 +252,18 @@ func addMovieIndicators(movie Movie, title string) string {
 
 func formatYear(year int) string {
 	if year == 0 {
-		return "N/A"
+		return DefaultNA
 	}
 	return strconv.Itoa(year)
 }
 
-// Error formatting
+// Error formatting.
 func FormatError(writer io.Writer, err error) error {
 	_, writeErr := fmt.Fprintf(writer, "Error: %s\n", err.Error())
 	return writeErr
 }
 
-// Summary formatting for different commands
+// Summary formatting for different commands.
 func FormatSummary(writer io.Writer, movies []Movie, command string, useOriginal bool) {
 	if len(movies) == 0 {
 		return
@@ -254,31 +276,43 @@ func FormatSummary(writer io.Writer, movies []Movie, command string, useOriginal
 
 	switch command {
 	case "popular":
-		_, _ = fmt.Fprintf(writer, "Showing %d popular movies (%s)\n\n", len(movies), titleType)
+		if _, err := fmt.Fprintf(writer, "Showing %d popular movies (%s)\n\n", len(movies), titleType); err != nil {
+			// Error is intentionally ignored in summary formatting
+		}
 	case "top-rated":
-		fmt.Fprintf(writer, "Showing %d top-rated movies (%s)\n\n", len(movies), titleType)
+		if _, err := fmt.Fprintf(writer, "Showing %d top-rated movies (%s)\n\n", len(movies), titleType); err != nil {
+			// Error is intentionally ignored in summary formatting
+		}
 	case "now-playing":
-		fmt.Fprintf(writer, "Showing %d movies now playing (%s)\n\n", len(movies), titleType)
+		if _, err := fmt.Fprintf(writer, "Showing %d movies now playing (%s)\n\n", len(movies), titleType); err != nil {
+			// Error is intentionally ignored in summary formatting
+		}
 	case "upcoming":
-		fmt.Fprintf(writer, "Showing %d upcoming movies (%s)\n\n", len(movies), titleType)
+		if _, err := fmt.Fprintf(writer, "Showing %d upcoming movies (%s)\n\n", len(movies), titleType); err != nil {
+			// Error is intentionally ignored in summary formatting
+		}
 	case "search":
-		fmt.Fprintf(writer, "Found %d movies (%s)\n\n", len(movies), titleType)
+		if _, err := fmt.Fprintf(writer, "Found %d movies (%s)\n\n", len(movies), titleType); err != nil {
+			// Error is intentionally ignored in summary formatting
+		}
 	case "discover":
-		fmt.Fprintf(writer, "Discovered %d movies (%s)\n\n", len(movies), titleType)
+		if _, err := fmt.Fprintf(writer, "Discovered %d movies (%s)\n\n", len(movies), titleType); err != nil {
+			// Error is intentionally ignored in summary formatting
+		}
 	}
 }
 
-// Validate format option
+// ValidateFormat validates format option.
 func ValidateFormat(format string) bool {
 	switch format {
-	case "table", "json", "csv":
+	case FormatTable, FormatJSON, FormatCSV:
 		return true
 	default:
 		return false
 	}
 }
 
-// Get supported formats
+// SupportedFormats returns supported formats.
 func SupportedFormats() []string {
-	return []string{"table", "json", "csv"}
+	return []string{FormatTable, FormatJSON, FormatCSV}
 }

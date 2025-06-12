@@ -117,12 +117,12 @@ USAGE:
 
 COMMANDS:
     popular [count]              Show popular movies
-    top-rated [count]            Show top-rated movies  
+    top-rated [count]            Show top-rated movies
     now-playing [count]          Show movies in theaters
     upcoming [count]             Show upcoming releases
     search <query>               Search for movies
     discover [options]           Discover movies with filters
-    
+
     version                      Show version information
     config                       Show configuration help
     help                         Show this help
@@ -179,7 +179,7 @@ func handleConfigCommand() {
 	fmt.Print(internal.GetConfigHelp())
 }
 
-// Common flag parsing for all commands
+// Common flag parsing for all commands.
 type CommonFlags struct {
 	Format        string
 	MaxItems      int
@@ -193,7 +193,7 @@ func parseCommonFlags(args []string) (CommonFlags, []string, error) {
 	var flags CommonFlags
 
 	fs := flag.NewFlagSet("common", flag.ContinueOnError)
-	fs.StringVar(&flags.Format, "format", "table", "Output format")
+	fs.StringVar(&flags.Format, "format", internal.FormatTable, "Output format")
 	fs.IntVar(&flags.MaxItems, "max-items", 20, "Maximum items")
 	fs.BoolVar(&flags.OriginalTitle, "original-title", false, "Show original titles")
 	fs.BoolVar(&flags.NoHeader, "no-header", false, "No table headers")
@@ -201,7 +201,9 @@ func parseCommonFlags(args []string) (CommonFlags, []string, error) {
 	fs.BoolVar(&flags.Debug, "debug", false, "Debug logging")
 
 	// Find where flags end and positional args begin
-	var flagArgs, posArgs []string
+	posArgs := make([]string, 0, len(args))
+	var flagArgs []string
+
 	for i, arg := range args {
 		if strings.HasPrefix(arg, "-") {
 			flagArgs = args[i:]
@@ -243,7 +245,7 @@ func handleAutoSearch(
 	fmt.Printf("Found %d movies for \"%s\"\n\n", len(movies), query)
 
 	options := internal.FormatOptions{
-		Format:   "table",
+		Format:   internal.FormatTable,
 		NoHeader: false,
 		MaxWidth: 120,
 	}
@@ -285,7 +287,8 @@ func parseCountArg(args []string, defaultCount int) (int, error) {
 }
 
 func showProgress(message string, maxItems int) {
-	if maxItems > 40 {
+	const progressThreshold = 40
+	if maxItems > progressThreshold {
 		fmt.Printf("%s...\n", message)
 	}
 }

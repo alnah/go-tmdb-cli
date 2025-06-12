@@ -1,4 +1,4 @@
-// internal/client.go
+// Package internal provides core data structures and utilities for the TMDB CLI application.
 package internal
 
 import (
@@ -15,7 +15,19 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// Client handles all TMDB API interactions with caching and rate limiting
+// Client constants.
+const (
+	IdleConnTimeoutSec = 90
+	RateLimitPerSec    = 3.5
+	RateLimitBurst     = 10
+	LoadGenresTimeout  = 30
+	BadRequestStatus   = 400
+	UnauthorizedStatus = 401
+	NotFoundStatus     = 404
+	RateLimitStatus    = 429
+)
+
+// Client handles all TMDB API interactions with caching and rate limiting.
 type Client struct {
 	httpClient  *http.Client
 	config      Config
@@ -35,7 +47,7 @@ type cachedItem struct {
 	expiry time.Time
 }
 
-// TMDBResponse represents raw API response structure
+// TMDBResponse represents raw API response structure.
 type TMDBResponse struct {
 	Page         int         `json:"page"`
 	Results      []TMDBMovie `json:"results"`
@@ -61,20 +73,20 @@ type TMDBGenresResponse struct {
 	Genres []Genre `json:"genres"`
 }
 
-// NewClient creates a new TMDB client
+// NewClient creates a new TMDB client.
 func NewClient(config Config) *Client {
 	// Configure HTTP client with reasonable timeouts
 	httpClient := &http.Client{
 		Timeout: config.Timeout,
 		Transport: &http.Transport{
 			MaxIdleConns:       10,
-			IdleConnTimeout:    90 * time.Second,
+			IdleConnTimeout:    IdleConnTimeoutSec * time.Second,
 			DisableCompression: false,
 		},
 	}
 
 	// Rate limiter: TMDB allows 40 requests per 10 seconds, be conservative
-	rateLimiter := rate.NewLimiter(3.5, 10) // 3.5 req/sec with burst of 10
+	rateLimiter := rate.NewLimiter(RateLimitPerSec, RateLimitBurst) // 3.5 req/sec with burst of 10
 
 	client := &Client{
 		httpClient:  httpClient,
@@ -90,27 +102,27 @@ func NewClient(config Config) *Client {
 	return client
 }
 
-// GetPopularMovies fetches popular movies
+// GetPopularMovies fetches popular movies.
 func (c *Client) GetPopularMovies(ctx context.Context, maxItems int) ([]Movie, error) {
 	return c.fetchMoviePages(ctx, "/movie/popular", nil, maxItems)
 }
 
-// GetTopRatedMovies fetches top-rated movies
+// GetTopRatedMovies fetches top-rated movies.
 func (c *Client) GetTopRatedMovies(ctx context.Context, maxItems int) ([]Movie, error) {
 	return c.fetchMoviePages(ctx, "/movie/top_rated", nil, maxItems)
 }
 
-// GetNowPlayingMovies fetches movies currently in theaters
+// GetNowPlayingMovies fetches movies currently in theaters.
 func (c *Client) GetNowPlayingMovies(ctx context.Context, maxItems int) ([]Movie, error) {
 	return c.fetchMoviePages(ctx, "/movie/now_playing", nil, maxItems)
 }
 
-// GetUpcomingMovies fetches upcoming movie releases
+// GetUpcomingMovies fetches upcoming movie releases.
 func (c *Client) GetUpcomingMovies(ctx context.Context, maxItems int) ([]Movie, error) {
 	return c.fetchMoviePages(ctx, "/movie/upcoming", nil, maxItems)
 }
 
-// SearchMovies searches for movies by query
+// SearchMovies searches for movies by query.
 func (c *Client) SearchMovies(ctx context.Context, query string, maxItems int) ([]Movie, error) {
 	if query == "" {
 		return nil, fmt.Errorf("search query cannot be empty")
@@ -122,13 +134,13 @@ func (c *Client) SearchMovies(ctx context.Context, query string, maxItems int) (
 	return c.fetchMoviePages(ctx, "/search/movie", params, maxItems)
 }
 
-// DiscoverMovies discovers movies with filters
+// DiscoverMovies discovers movies with filters.
 func (c *Client) DiscoverMovies(ctx context.Context, opts SearchOptions) ([]Movie, error) {
 	params := c.buildDiscoverParams(opts)
 	return c.fetchMoviePages(ctx, "/discover/movie", params, opts.MaxItems)
 }
 
-// fetchMoviePages handles pagination and returns consolidated results
+// fetchMoviePages handles pagination and returns consolidated results.
 func (c *Client) fetchMoviePages(
 	ctx context.Context,
 	endpoint string,
@@ -162,8 +174,7 @@ func (c *Client) fetchMoviePages(
 
 		// Try cache first
 		if data := c.getFromCache(cacheKey); data != nil {
-			var response TMDBResponse
-			if err := json.Unmarshal(data, &response); err == nil {
+			if response, err := c.parseMovieResponse(data); err == nil {
 				movies := c.convertMovies(response.Results)
 				allMovies = append(allMovies, movies...)
 
@@ -210,30 +221,39 @@ func (c *Client) fetchMoviePages(
 	return allMovies, nil
 }
 
-// makeRequest makes HTTP request to TMDB API
+// parseMovieResponse parses cached movie response data.
+func (c *Client) parseMovieResponse(data []byte) (*TMDBResponse, error) {
+	var response TMDBResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+// makeRequest makes HTTP request to TMDB API.
 func (c *Client) makeRequest(
 	ctx context.Context,
 	endpoint string,
 	params url.Values,
 ) (*TMDBResponse, error) {
 	// Build URL
-	u, err := url.Parse(c.config.BaseURL + endpoint)
+	apiURL, err := url.Parse(c.config.BaseURL + endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
 	// Add API key and params
-	q := u.Query()
+	q := apiURL.Query()
 	q.Set("api_key", c.config.APIKey)
 	for key, values := range params {
 		for _, value := range values {
 			q.Add(key, value)
 		}
 	}
-	u.RawQuery = q.Encode()
+	apiURL.RawQuery = q.Encode()
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -258,7 +278,11 @@ func (c *Client) makeRequest(
 		}
 		break
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the request
+		}
+	}()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
@@ -267,7 +291,7 @@ func (c *Client) makeRequest(
 	}
 
 	// Check for API errors
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= BadRequestStatus {
 		return nil, c.handleAPIError(resp.StatusCode, body)
 	}
 
@@ -280,7 +304,7 @@ func (c *Client) makeRequest(
 	return &response, nil
 }
 
-// convertMovies converts TMDB API response to our simplified format
+// convertMovies converts TMDB API response to our simplified format.
 func (c *Client) convertMovies(tmdbMovies []TMDBMovie) []Movie {
 	movies := make([]Movie, len(tmdbMovies))
 
@@ -307,7 +331,7 @@ func (c *Client) convertMovies(tmdbMovies []TMDBMovie) []Movie {
 	return movies
 }
 
-// mapGenres converts genre IDs to names
+// mapGenres converts genre IDs to names.
 func (c *Client) mapGenres(genreIDs []int) []string {
 	c.genresMu.RLock()
 	defer c.genresMu.RUnlock()
@@ -321,9 +345,9 @@ func (c *Client) mapGenres(genreIDs []int) []string {
 	return names
 }
 
-// loadGenres loads genre mappings from API
+// loadGenres loads genre mappings from API.
 func (c *Client) loadGenres() {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), LoadGenresTimeout*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
@@ -340,7 +364,11 @@ func (c *Client) loadGenres() {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the operation
+		}
+	}()
 
 	var genresResp TMDBGenresResponse
 	if err := json.NewDecoder(resp.Body).Decode(&genresResp); err != nil {
@@ -355,7 +383,7 @@ func (c *Client) loadGenres() {
 	}
 }
 
-// buildDiscoverParams converts search options to API parameters
+// buildDiscoverParams converts search options to API parameters.
 func (c *Client) buildDiscoverParams(opts SearchOptions) url.Values {
 	params := make(url.Values)
 
@@ -400,7 +428,7 @@ func (c *Client) buildDiscoverParams(opts SearchOptions) url.Values {
 	return params
 }
 
-// Cache management
+// Cache management.
 func (c *Client) getFromCache(key string) []byte {
 	c.cacheMu.RLock()
 	defer c.cacheMu.RUnlock()
@@ -422,7 +450,8 @@ func (c *Client) putInCache(key string, data []byte) {
 	}
 
 	// Simple cleanup: remove expired items periodically
-	if len(c.cache) > 100 {
+	const maxCacheSize = 100
+	if len(c.cache) > maxCacheSize {
 		go c.cleanupCache()
 	}
 }
@@ -439,16 +468,16 @@ func (c *Client) cleanupCache() {
 	}
 }
 
-// handleAPIError creates user-friendly error messages
+// handleAPIError creates user-friendly error messages.
 func (c *Client) handleAPIError(statusCode int, body []byte) error {
 	switch statusCode {
-	case 401:
+	case UnauthorizedStatus:
 		return fmt.Errorf(
 			"invalid TMDB API key - get one from https://www.themoviedb.org/settings/api",
 		)
-	case 404:
+	case NotFoundStatus:
 		return fmt.Errorf("resource not found")
-	case 429:
+	case RateLimitStatus:
 		return fmt.Errorf("rate limit exceeded - please wait and try again")
 	default:
 		return fmt.Errorf("API error (status %d): %s", statusCode, string(body))

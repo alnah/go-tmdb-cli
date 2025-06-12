@@ -1,4 +1,4 @@
-// internal/models.go
+// Package internal provides core data structures and utilities for the TMDB CLI application.
 package internal
 
 import (
@@ -8,7 +8,46 @@ import (
 	"time"
 )
 
-// Movie represents a simplified movie structure
+// Constants for common values.
+const (
+	MinValidYear          = 1888
+	MaxReasonableYear     = 2030
+	YearDigits            = 4
+	OneThousand           = 1000
+	OneMillion            = 1000000
+	MinVotesForRating     = 10
+	MinVotesForUncertain  = 100
+	HighRatingThreshold   = 8.0
+	PopularityThreshold   = 50.0
+	PopularVotesThreshold = 1000
+	RecentYearsBack       = 2
+	DefaultTimeout        = 30
+	DefaultCacheTTL       = 5
+)
+
+// TMDB genre ID constants.
+const (
+	GenreAction      = 28
+	GenreAdventure   = 12
+	GenreAnimation   = 16
+	GenreComedy      = 35
+	GenreCrime       = 80
+	GenreDocumentary = 99
+	GenreDrama       = 18
+	GenreFamily      = 10751
+	GenreFantasy     = 14
+	GenreHistory     = 36
+	GenreHorror      = 27
+	GenreMusic       = 10402
+	GenreMystery     = 9648
+	GenreRomance     = 10749
+	GenreSciFi       = 878
+	GenreThriller    = 53
+	GenreWar         = 10752
+	GenreWestern     = 37
+)
+
+// Movie represents a simplified movie structure.
 type Movie struct {
 	ID            int     `json:"id"`
 	Title         string  `json:"title"`
@@ -24,7 +63,7 @@ type Movie struct {
 	ReleaseDate   string  `json:"release_date,omitempty"`
 }
 
-// SearchResult represents paginated search results
+// SearchResult represents paginated search results.
 type SearchResult struct {
 	Movies       []Movie `json:"movies"`
 	Page         int     `json:"page"`
@@ -32,7 +71,7 @@ type SearchResult struct {
 	TotalResults int     `json:"total_results"`
 }
 
-// SearchOptions represents search parameters
+// SearchOptions represents search parameters.
 type SearchOptions struct {
 	Query         string
 	Page          int
@@ -47,13 +86,13 @@ type SearchOptions struct {
 	MaxItems      int
 }
 
-// Genre represents a movie genre
+// Genre represents a movie genre.
 type Genre struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
 
-// Config represents application configuration
+// Config represents application configuration.
 type Config struct {
 	APIKey     string        `yaml:"api_key"     env:"TMDB_API_KEY"`
 	BaseURL    string        `yaml:"base_url"`
@@ -66,29 +105,29 @@ type Config struct {
 
 // Helper functions (not methods to keep it simple)
 
-// FormatRating formats rating with vote count context
+// FormatRating formats rating with vote count context.
 func FormatRating(rating float64, votes int) string {
-	if votes < 10 {
+	if votes < MinVotesForRating {
 		return "N/A"
 	}
-	if votes < 100 {
+	if votes < MinVotesForUncertain {
 		return fmt.Sprintf("%.1f?", rating)
 	}
 	return fmt.Sprintf("%.1f", rating)
 }
 
-// FormatVotes formats vote count with human-readable suffixes
+// FormatVotes formats vote count with human-readable suffixes.
 func FormatVotes(votes int) string {
-	if votes < 1000 {
+	if votes < OneThousand {
 		return strconv.Itoa(votes)
 	}
-	if votes < 1000000 {
-		return fmt.Sprintf("%.1fK", float64(votes)/1000)
+	if votes < OneMillion {
+		return fmt.Sprintf("%.1fK", float64(votes)/OneThousand)
 	}
-	return fmt.Sprintf("%.1fM", float64(votes)/1000000)
+	return fmt.Sprintf("%.1fM", float64(votes)/OneMillion)
 }
 
-// FormatGenres cleans up genre formatting
+// FormatGenres cleans up genre formatting.
 func FormatGenres(genres string, maxWidth int) string {
 	if genres == "" {
 		return "N/A"
@@ -99,20 +138,20 @@ func FormatGenres(genres string, maxWidth int) string {
 	return genres[:maxWidth-3] + "..."
 }
 
-// ParseYear extracts year from release date string
+// ParseYear extracts year from release date string.
 func ParseYear(releaseDate string) int {
 	if releaseDate == "" {
 		return 0
 	}
-	if len(releaseDate) >= 4 {
-		if year, err := strconv.Atoi(releaseDate[:4]); err == nil {
+	if len(releaseDate) >= YearDigits {
+		if year, err := strconv.Atoi(releaseDate[:YearDigits]); err == nil {
 			return year
 		}
 	}
 	return 0
 }
 
-// ShortenOverview truncates overview to specified length
+// ShortenOverview truncates overview to specified length.
 func ShortenOverview(overview string, maxLength int) string {
 	if len(overview) <= maxLength {
 		return overview
@@ -127,23 +166,23 @@ func ShortenOverview(overview string, maxLength int) string {
 	return truncated + "..."
 }
 
-// IsHighlyRated determines if a movie is highly rated
+// IsHighlyRated determines if a movie is highly rated.
 func IsHighlyRated(rating float64, votes int) bool {
-	return rating >= 8.0 && votes >= 100
+	return rating >= HighRatingThreshold && votes >= MinVotesForUncertain
 }
 
-// IsPopular determines if a movie is popular
+// IsPopular determines if a movie is popular.
 func IsPopular(popularity float64, votes int) bool {
-	return popularity >= 50.0 || votes >= 1000
+	return popularity >= PopularityThreshold || votes >= PopularVotesThreshold
 }
 
-// IsRecent determines if a movie is recent
+// IsRecent determines if a movie is recent.
 func IsRecent(year int) bool {
 	currentYear := time.Now().Year()
-	return year >= currentYear-2
+	return year >= currentYear-RecentYearsBack
 }
 
-// BuildDisplayTitle creates display title with original title if different
+// BuildDisplayTitle creates display title with original title if different.
 func BuildDisplayTitle(title, originalTitle string) string {
 	if originalTitle == "" || originalTitle == title {
 		return title
@@ -151,12 +190,12 @@ func BuildDisplayTitle(title, originalTitle string) string {
 	return fmt.Sprintf("%s (%s)", title, originalTitle)
 }
 
-// ValidateSearchOptions validates search parameters
+// ValidateSearchOptions validates search parameters.
 func ValidateSearchOptions(opts *SearchOptions) error {
 	if opts.Page < 1 {
 		opts.Page = 1
 	}
-	if opts.MaxItems < 1 || opts.MaxItems > 1000 {
+	if opts.MaxItems < 1 || opts.MaxItems > OneThousand {
 		return fmt.Errorf("max-items must be between 1 and 1000, got %d", opts.MaxItems)
 	}
 	if opts.MinRating < 0 || opts.MinRating > 10 {
@@ -175,42 +214,42 @@ func ValidateSearchOptions(opts *SearchOptions) error {
 	return nil
 }
 
-// DefaultConfig returns default configuration
+// DefaultConfig returns default configuration.
 func DefaultConfig() Config {
 	return Config{
 		BaseURL:    "https://api.themoviedb.org/3",
-		Timeout:    30 * time.Second,
+		Timeout:    DefaultTimeout * time.Second,
 		MaxRetries: 3,
-		CacheTTL:   5 * time.Minute,
+		CacheTTL:   DefaultCacheTTL * time.Minute,
 		LogLevel:   "info",
 		Format:     "table",
 	}
 }
 
-// Common genre mappings for discovery
+// Common genre mappings for discovery.
 var GenreMap = map[string]int{
-	"action":          28,
-	"adventure":       12,
-	"animation":       16,
-	"comedy":          35,
-	"crime":           80,
-	"documentary":     99,
-	"drama":           18,
-	"family":          10751,
-	"fantasy":         14,
-	"history":         36,
-	"horror":          27,
-	"music":           10402,
-	"mystery":         9648,
-	"romance":         10749,
-	"science-fiction": 878,
-	"sci-fi":          878,
-	"thriller":        53,
-	"war":             10752,
-	"western":         37,
+	"action":          GenreAction,
+	"adventure":       GenreAdventure,
+	"animation":       GenreAnimation,
+	"comedy":          GenreComedy,
+	"crime":           GenreCrime,
+	"documentary":     GenreDocumentary,
+	"drama":           GenreDrama,
+	"family":          GenreFamily,
+	"fantasy":         GenreFantasy,
+	"history":         GenreHistory,
+	"horror":          GenreHorror,
+	"music":           GenreMusic,
+	"mystery":         GenreMystery,
+	"romance":         GenreRomance,
+	"science-fiction": GenreSciFi,
+	"sci-fi":          GenreSciFi,
+	"thriller":        GenreThriller,
+	"war":             GenreWar,
+	"western":         GenreWestern,
 }
 
-// ParseGenres converts genre names to IDs
+// ParseGenres converts genre names to IDs.
 func ParseGenres(genreNames []string) ([]int, error) {
 	var ids []int
 	for _, name := range genreNames {
