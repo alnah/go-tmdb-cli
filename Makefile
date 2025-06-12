@@ -1,4 +1,4 @@
-# TMDB CLI Enhanced Makefile
+# TMDB CLI Makefile
 # =========================
 #
 # This Makefile provides a set of targets for developing,
@@ -10,7 +10,7 @@
 # We use golangci-lint v1.64.8, which is the last stable V1 version.
 # V2 behaves weirdly with GitHub Actions.
 
-.PHONY: all build test clean install run fmt vet lint help
+.PHONY: all build test clean install run fmt vet lint fix help
 .PHONY: release release-snapshot release-test tools deps check
 .PHONY: coverage benchmark security
 
@@ -73,6 +73,19 @@ lint:
 		golangci-lint --version | grep -q "$(GOLANGCI_LINT_VERSION)" || \
 		(echo "$(YELLOW)Warning: Different golangci-lint version detected. Expected $(GOLANGCI_LINT_VERSION)$(NC)"); \
 		golangci-lint run --config .golangci.yml; \
+	else \
+		echo "$(YELLOW)golangci-lint not found. Install with 'make tools'$(NC)"; \
+		exit 1; \
+	fi
+
+# Fix code issues automatically with golangci-lint
+fix:
+	@echo "$(BLUE)Auto-fixing code issues with golangci-lint $(GOLANGCI_LINT_VERSION)...$(NC)"
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint --version | grep -q "$(GOLANGCI_LINT_VERSION)" || \
+		(echo "$(YELLOW)Warning: Different golangci-lint version detected. Expected $(GOLANGCI_LINT_VERSION)$(NC)"); \
+		golangci-lint run --config .golangci.yml --fix; \
+		echo "$(GREEN)Auto-fix completed. Review changes before committing.$(NC)"; \
 	else \
 		echo "$(YELLOW)golangci-lint not found. Install with 'make tools'$(NC)"; \
 		exit 1; \
@@ -287,6 +300,10 @@ pre-release: clean check test-integration release-test
 dev: deps fmt vet test build
 	@echo "$(GREEN)Development build complete!$(NC)"
 
+# Development workflow with auto-fix
+dev-fix: deps fmt fix test build
+	@echo "$(GREEN)Development build with auto-fix complete!$(NC)"
+
 # Show version information
 version:
 	@echo "Version: $(VERSION)"
@@ -304,6 +321,7 @@ help:
 	@echo "  fmt               Format code"
 	@echo "  vet               Vet code"
 	@echo "  lint              Lint code with golangci-lint $(GOLANGCI_LINT_VERSION)"
+	@echo "  fix               Auto-fix code issues with golangci-lint"
 	@echo "  test              Run unit tests"
 	@echo "  test-all          Run all tests (unit, integration, e2e)"
 	@echo "  test-integration  Run integration tests (requires TMDB_API_KEY)"
@@ -315,6 +333,7 @@ help:
 	@echo "  security          Run security scan (requires gosec)"
 	@echo "  check             Run all quality checks"
 	@echo "  dev               Development workflow (deps, fmt, vet, test, build)"
+	@echo "  dev-fix           Development workflow with auto-fix (deps, fmt, fix, test, build)"
 	@echo ""
 	@echo "$(YELLOW)Building:$(NC)"
 	@echo "  build             Build binary for current platform"
@@ -339,6 +358,8 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Examples:$(NC)"
 	@echo "  make dev                    # Development workflow"
+	@echo "  make dev-fix                # Development workflow with auto-fix"
+	@echo "  make fix                    # Auto-fix code issues"
 	@echo "  make run ARGS='popular 10'  # Run with arguments"
 	@echo "  make test-integration       # Integration tests"
 	@echo "  make release-snapshot       # Test release"
