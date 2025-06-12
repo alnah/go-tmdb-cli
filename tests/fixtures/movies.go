@@ -1,5 +1,5 @@
-// tests/fixtures/movies_test.go
-package fixtures_test
+// tests/fixtures/movies.go
+package fixtures
 
 import (
 	"github.com/alnah/tmdb-cli/internal"

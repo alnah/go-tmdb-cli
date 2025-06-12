@@ -1,5 +1,5 @@
-// tests/helpers/assertions_test.go
-package helpers_test
+// tests/helpers/assertions.go
+package helpers
 
 import (
 	"encoding/json"

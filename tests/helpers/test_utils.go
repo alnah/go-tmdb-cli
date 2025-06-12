@@ -1,5 +1,5 @@
-// tests/helpers/utils_test.go
-package helpers_test
+// tests/helpers/test_utils.go
+package helpers
 
 import (
 	"fmt"

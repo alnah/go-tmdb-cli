@@ -1,5 +1,5 @@
-// tests/helpers/mock_client_test.go
-package helpers_test
+// tests/helpers/mock_client.go
+package helpers
 
 import (
 	"bytes"

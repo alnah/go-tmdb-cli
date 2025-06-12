@@ -1,5 +1,5 @@
-// tests/fixtures/configs_test.go
-package fixtures_test
+// tests/fixtures/configs.go
+package fixtures
 
 import (
 	"time"
