@@ -258,7 +258,7 @@ func (c *Client) makeRequest(
 		}
 		break
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)

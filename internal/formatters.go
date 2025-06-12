@@ -173,7 +173,7 @@ func formatSearchResultTable(writer io.Writer, result SearchResult, options Form
 
 	// Show pagination info first
 	if result.TotalPages > 1 {
-		fmt.Fprintf(writer, "Page %d of %d (%d total results)\n\n",
+		_, _ = fmt.Fprintf(writer, "Page %d of %d (%d total results)\n\n",
 			result.Page, result.TotalPages, result.TotalResults)
 	}
 
@@ -254,7 +254,7 @@ func FormatSummary(writer io.Writer, movies []Movie, command string, useOriginal
 
 	switch command {
 	case "popular":
-		fmt.Fprintf(writer, "Showing %d popular movies (%s)\n\n", len(movies), titleType)
+		_, _ = fmt.Fprintf(writer, "Showing %d popular movies (%s)\n\n", len(movies), titleType)
 	case "top-rated":
 		fmt.Fprintf(writer, "Showing %d top-rated movies (%s)\n\n", len(movies), titleType)
 	case "now-playing":
