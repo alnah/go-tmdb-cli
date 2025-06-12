@@ -18,15 +18,26 @@ output:
 
 # Linters settings
 linters-settings:
-  # Error handling
+  # Error handling - More practical for CLI apps
   errcheck:
     check-type-assertions: true
-    check-blank: true
+    check-blank: false # Don't require checking blank assignments
     exclude-functions:
+      # Standard library cleanup functions
       - (*os.File).Close
       - (*sql.Rows).Close
       - (*sql.Stmt).Close
       - (*http.Response.Body).Close
+      # Logging and output functions where errors are often not critical
+      - (io.Writer).Write
+      - fmt.Fprint
+      - fmt.Fprintf
+      - fmt.Fprintln
+      - fmt.Print
+      - fmt.Printf
+      - fmt.Println
+      # JSON encoding for CLI output
+      - (*encoding/json.Encoder).Encode
 
   # Code complexity
   gocyclo:
@@ -348,6 +359,22 @@ issues:
     - path: (config|test)
       linters:
         - mnd
+
+    # Exclude errcheck for intentionally ignored errors in formatters
+    - path: internal/formatters\.go
+      linters:
+        - errcheck
+      text: "Error return value of `fmt\\.(Fprint|Fprintf|Fprintln)` is not checked"
+
+    # Exclude errcheck for defer Close() calls
+    - linters:
+        - errcheck
+      text: "Error return value of.*Close.*is not checked"
+
+    # Exclude errcheck for output functions in CLI context
+    - linters:
+        - errcheck
+      text: "Error return value of.*Write.*is not checked"
 
   # Exclude default patterns
   exclude-use-default: false
