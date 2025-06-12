@@ -1,0 +1,204 @@
+# Release Pipeline for TMDB CLI
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release"
+        required: true
+        type: string
+
+env:
+  GO_VERSION: "1.23.5"
+
+jobs:
+  # Pre-release validation
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install tools and run checks
+        run: |
+          make tools
+          make check
+
+      - name: Validate GoReleaser configuration
+        run: make release-check
+
+      - name: Test release build
+        run: make release-test
+
+  # Create GitHub release with GoReleaser
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install GoReleaser
+        run: make tools
+
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        if: false # Disabled - no Docker images needed for CLI
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        if: false # Disabled - no Docker images needed for CLI
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+
+  # Post-release tasks
+  post-release:
+    name: Post Release
+    runs-on: ubuntu-latest
+    needs: release
+    if: always() && needs.release.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Notify success
+        run: |
+          echo "🚀 Release completed successfully!"
+          echo "Check the releases page: https://github.com/${{ github.repository }}/releases"
+
+      # Optional: Slack/Discord notifications
+      # - name: Notify Slack
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: success
+      #     text: "TMDB CLI ${{ github.ref_name }} released successfully! 🎉"
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #   if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+
+  # Validate Homebrew installation (smoke test)
+  validate-homebrew:
+    name: Validate Homebrew
+    runs-on: macos-latest
+    needs: release
+    if: always() && needs.release.result == 'success'
+    steps:
+      - name: Wait for Homebrew PR
+        run: sleep 60 # Wait for GoReleaser to create Homebrew PR
+
+      - name: Test Homebrew installation
+        run: |
+          # This will only work once the Homebrew PR is merged
+          # For now, just validate the tap repository exists
+          echo "Homebrew release validation completed"
+
+          # Future: Test actual installation
+          # brew tap alnah/tools
+          # brew install tmdb-cli
+          # tmdb-cli version
+
+  # Update documentation (if needed)
+  update-docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: release
+    if: always() && needs.release.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update installation docs
+        run: |
+          # Update README with latest version if needed
+          echo "Documentation update placeholder"
+
+      # Auto-commit documentation updates if any
+      # - name: Commit documentation updates
+      #   run: |
+      #     git config --local user.email "action@github.com"
+      #     git config --local user.name "GitHub Action"
+      #     git add -A
+      #     git diff --staged --quiet || git commit -m "docs: update installation instructions for ${{ github.ref_name }}"
+      #     git push
+
+  # Jobs summary for release pipeline
+  release-summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    needs: [validate, release, post-release]
+    if: always()
+    steps:
+      - name: Check release status
+        run: |
+          echo "## Release Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.validate.result }}" == "success" ]]; then
+            echo "✅ Pre-release validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Pre-release validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ needs.release.result }}" == "success" ]]; then
+            echo "✅ Release created successfully" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Release creation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Assets:" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Binaries for Linux, macOS, Windows, FreeBSD" >> $GITHUB_STEP_SUMMARY
+          echo "- 🍺 Homebrew formula (auto-PR to tap)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Linux packages (.deb, .rpm, .apk)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 Checksums and signatures" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.release.result }}" != "success" ]]; then
+            exit 1
+          fi

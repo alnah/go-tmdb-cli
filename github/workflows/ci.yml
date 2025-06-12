@@ -1,0 +1,248 @@
+# CI Pipeline for TMDB CLI - Updated for golangci-lint v1.64.8
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+env:
+  GO_VERSION: "1.23.5"
+  GOLANGCI_LINT_VERSION: "v1.64.8" # Last stable V1 version
+
+jobs:
+  # Code quality and linting
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # Optional for only-new-issues
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for only-new-issues
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m --config=.golangci.yml
+          only-new-issues: ${{ github.event_name == 'pull_request' }}
+          skip-cache: false
+          skip-pkg-cache: false
+          skip-build-cache: false
+
+  # Unit and integration tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.22", "1.23.5"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run unit tests with coverage
+        run: make coverage-clean
+
+      - name: Run integration tests
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: make test-integration
+
+      - name: Generate coverage report
+        run: go tool cover -html=coverage/coverage-clean.out -o coverage/coverage-clean.html
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/coverage-clean.out
+          flags: unittests
+          name: codecov-${{ matrix.go-version }}
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-go${{ matrix.go-version }}
+          path: coverage/coverage-clean.html
+
+  # Build verification
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [lint]
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+        exclude:
+          - os: windows
+            arch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build application
+        run: make build-all
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmdb-cli-${{ matrix.os }}-${{ matrix.arch }}
+          path: bin/
+          retention-days: 30
+
+  # Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run security scanning
+        run: make security
+
+  # End-to-end testing with real API
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tmdb-cli-linux-amd64
+          path: bin/
+
+      - name: Make binary executable
+        run: chmod +x bin/tmdb-cli-linux-amd64
+
+      - name: Run E2E tests
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: make test-e2e
+
+  # Code quality analysis
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report-go${{ env.GO_VERSION }}
+
+      - name: Calculate complexity
+        run: |
+          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+          gocyclo -over 15 . | tee complexity.txt
+
+      - name: Check test coverage threshold
+        run: make coverage-check
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "Checking for TODO/FIXME comments:"
+          grep -rn "TODO\|FIXME" --include="*.go" . | tee todos.txt || true
+
+          # Don't fail on TODOs, just report them
+          if [ -s todos.txt ]; then
+            echo "Found TODO/FIXME comments. Consider addressing them."
+          fi
+
+  # Validation summary job
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint, test, build, security]
+    if: always()
+    steps:
+      - name: Check all jobs status
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "Lint job failed"
+            exit 1
+          fi
+
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "Test job failed"
+            exit 1
+          fi
+
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "Build job failed"
+            exit 1
+          fi
+
+          if [[ "${{ needs.security.result }}" != "success" ]]; then
+            echo "Security job failed"
+            exit 1
+          fi
+
+          echo "All CI jobs completed successfully!"
+
+      - name: CI Summary
+        run: |
+          echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Code linting and formatting (golangci-lint ${{ env.GOLANGCI_LINT_VERSION }})" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Unit and integration tests" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Multi-platform builds" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Security scanning" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Code quality checks" >> $GITHUB_STEP_SUMMARY

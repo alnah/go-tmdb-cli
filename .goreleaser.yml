@@ -1,0 +1,336 @@
+# GoReleaser configuration for TMDB CLI
+# Documentation: https://goreleaser.com
+version: 2
+
+# Project metadata
+project_name: tmdb-cli
+
+# Environment setup and build preparation
+env:
+  - CGO_ENABLED=0
+  - GO111MODULE=on
+
+before:
+  hooks:
+    # Tidy dependencies and run tests
+    - go mod tidy
+    - go test ./...
+    # Generate man pages and completions if needed
+    # - go generate ./...
+
+# Git configuration
+git:
+  # What should be used to sort tags when gathering the current and previous
+  # tags if there are more than one tag in the same commit
+  tag_sort: -version:refname
+  # What should be used to specify prerelease suffix while sorting tags when gathering
+  # the current and previous tags if there are more than one tag in the same commit
+  prerelease_suffix: "-"
+
+# Build configuration
+builds:
+  - id: tmdb-cli
+    # Path to main.go file or main package
+    main: ./cmd
+
+    # Binary name
+    binary: tmdb-cli
+
+    # Build flags
+    flags:
+      - -trimpath
+
+    # Linker flags
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildDate={{.Date}}
+      - -X main.gitCommit={{.FullCommit}}
+
+    # Environment variables
+    env:
+      - CGO_ENABLED=0
+
+    # Target operating systems
+    goos:
+      - linux
+      - darwin
+      - windows
+      - freebsd
+
+    # Target architectures
+    goarch:
+      - amd64
+      - arm64
+      - arm
+
+    # ARM versions (when GOARCH is arm)
+    goarm:
+      - "6"
+      - "7"
+
+    # Ignore certain combinations
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: arm64
+
+# Archive configuration
+archives:
+  - id: default
+    # Archive name template
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+    # Archive format per OS
+    format_overrides:
+      - goos: windows
+        format: zip
+
+    # Files to include in archive
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      # Include shell completions if they exist
+      # - completions/*
+
+    # Create wrapper script for better user experience
+    wrap_in_directory: false
+
+# Universal binaries for macOS (Apple Silicon + Intel)
+universal_binaries:
+  - id: tmdb-cli-universal
+    replace: true
+    name_template: tmdb-cli
+
+# Homebrew tap configuration
+brews:
+  - name: tmdb-cli
+    # IDs of the archives to use
+    ids:
+      - default
+
+    # Repository to push the tap to
+    repository:
+      owner: alnah
+      name: homebrew-tools
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        base: main
+
+    # Folder inside the repository to put the formula
+    directory: Formula
+
+    # App description
+    description: "A command-line interface for The Movie Database (TMDB)"
+    homepage: "https://github.com/alnah/tmdb-cli"
+    license: "Apache-2.0"
+
+    # Dependencies
+    dependencies:
+      - name: curl
+        type: optional
+
+    # Install instructions
+    install: |
+      bin.install "tmdb-cli"
+      # Install shell completions if available
+      # bash_completion.install "completions/tmdb-cli.bash" => "tmdb-cli"
+      # zsh_completion.install "completions/tmdb-cli.zsh" => "_tmdb-cli"
+      # fish_completion.install "completions/tmdb-cli.fish"
+
+    # Test command to verify installation
+    test: |
+      system "#{bin}/tmdb-cli", "version"
+
+# Linux packages configuration
+nfpms:
+  - id: tmdb-cli-packages
+    # Package name
+    package_name: tmdb-cli
+
+    # Vendor
+    vendor: Alexis Nahan
+    homepage: https://github.com/alnah/tmdb-cli
+    maintainer: Alexis Nahan <alexis.nahan@gmail.com>
+    description: |-
+      A command-line interface for The Movie Database (TMDB).
+      Search movies, get popular/top-rated lists, and discover films
+      with various filters directly from your terminal.
+    license: Apache-2.0
+    # Formats to generate
+    formats:
+      - apk
+      - deb
+      - rpm
+      - archlinux
+
+    # Package dependencies
+    dependencies:
+      - curl
+    recommends:
+      - ca-certificates
+
+    # Binary location
+    bindir: /usr/bin
+
+    # Files to include
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/tmdb-cli/README.md
+        file_info:
+          mode: 0644
+      - src: ./LICENSE
+        dst: /usr/share/doc/tmdb-cli/LICENSE
+        file_info:
+          mode: 0644
+
+# Snapcraft configuration
+snapcrafts:
+  - name: tmdb-cli
+    summary: Command-line interface for The Movie Database
+    description: |
+      A powerful CLI tool for interacting with The Movie Database (TMDB).
+      Search for movies, get popular and top-rated lists, discover films
+      with advanced filters, and format output as JSON, CSV, or tables.
+
+    grade: stable
+    confinement: strict
+
+    # Plugs for network access
+    plugs:
+      network:
+      network-bind:
+
+    # Apps configuration
+    apps:
+      tmdb-cli:
+        command: tmdb-cli
+        plugs: ["network"]
+
+# Checksums
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# Snapshot builds (for development)
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+# Changelog configuration
+changelog:
+  # Set this to true if you don't want any changelog at all
+  disable: false
+
+  # Changelog generation implementation
+  use: github
+
+  # Sorts the changelog by the commit's messages
+  sort: asc
+
+  # Group commits by type
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: "Bug fixes"
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: "Performance improvements"
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: "Refactors"
+      regexp: '^.*?refactor(\(.+\))??!?:.+$'
+      order: 3
+    - title: "Documentation updates"
+      regexp: '^.*?docs(\(.+\))??!?:.+$'
+      order: 4
+    - title: Others
+      order: 999
+
+  # Filter out commits
+  filters:
+    exclude:
+      - "^style:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^build:"
+      - "^Merge branch"
+      - "^Merge pull request"
+
+# Release configuration
+release:
+  # Repository to push the release to
+  github:
+    owner: alnah
+    name: tmdb-cli
+
+  # If set to true, will not auto-publish the release
+  draft: false
+
+  # Whether to remove existing draft releases with the same name before creating a new one
+  replace_existing_draft: true
+
+  # Release name template
+  name_template: "v{{.Version}}"
+
+  # What to do with the release notes in case there the release already exists
+  mode: replace
+
+  # Header for the release body
+  header: |
+    ## TMDB CLI {{ .Version }}
+
+    This release includes binaries for Linux, macOS, Windows, and FreeBSD.
+
+    ### Installation
+
+    **Homebrew (macOS/Linux):**
+    ```bash
+    brew tap alnah/tools
+    brew install tmdb-cli
+    ```
+
+    **Manual Installation:**
+    Download the appropriate binary for your platform from the assets below.
+
+  # Footer for the release body
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/alnah/tmdb-cli/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    For more information, visit: https://github.com/alnah/tmdb-cli
+
+# Announce configuration (optional)
+# announce:
+#   slack:
+#     enabled: true
+#     message_template: 'TMDB CLI {{ .Tag }} is out! Check it out: {{ .ReleaseURL }}'
+#     channel: '#releases'
+#
+#   twitter:
+#     enabled: true
+#     message_template: "TMDB CLI {{ .Tag }} is out! 🎬 CLI tool for @themoviedb 🚀 {{ .ReleaseURL }}"
+
+# Go modules proxy
+gomod:
+  proxy: true
+
+# Metadata
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
