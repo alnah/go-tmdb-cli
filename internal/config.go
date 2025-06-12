@@ -224,7 +224,7 @@ func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
 }
 
-// Logging helpers.
+// LogLevel represents the logging level for the application.
 type LogLevel int
 
 const (
@@ -252,7 +252,7 @@ func ParseLogLevel(level string) LogLevel {
 	}
 }
 
-// Simple logger that respects the configuration.
+// Logger provides structured logging for the application.
 type Logger struct {
 	level LogLevel
 }

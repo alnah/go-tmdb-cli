@@ -226,7 +226,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// Common genre mappings for discovery.
+// GenreMap provides a mapping from genre names to TMDB genre IDs for discovery functionality.
 var GenreMap = map[string]int{
 	"action":          GenreAction,
 	"adventure":       GenreAdventure,

@@ -162,29 +162,14 @@ func (c *Client) fetchMoviePages(
 		default:
 		}
 
-		// Prepare params for this page
-		pageParams := make(url.Values)
-		if params != nil {
-			pageParams = params
-		}
-		pageParams.Set("page", fmt.Sprintf("%d", page))
-
-		// Build cache key
-		cacheKey := fmt.Sprintf("%s?%s", endpoint, pageParams.Encode())
-
-		// Try cache first
-		if data := c.getFromCache(cacheKey); data != nil {
-			if response, err := c.parseMovieResponse(data); err == nil {
-				movies := c.convertMovies(response.Results)
-				allMovies = append(allMovies, movies...)
-
-				// Check if we have more pages and need more items
-				if page >= response.TotalPages || len(allMovies) >= maxItems {
-					break
-				}
-				page++
-				continue
+		// Try cache first and continue if found
+		if movies, totalPages, shouldContinue := c.tryFetchFromCache(endpoint, params, page); shouldContinue {
+			allMovies = append(allMovies, movies...)
+			if page >= totalPages || len(allMovies) >= maxItems {
+				break
 			}
+			page++
+			continue
 		}
 
 		// Make API call with rate limiting
@@ -192,15 +177,13 @@ func (c *Client) fetchMoviePages(
 			return nil, fmt.Errorf("rate limit: %w", err)
 		}
 
-		response, err := c.makeRequest(ctx, endpoint, pageParams)
+		response, err := c.makeAPIRequest(ctx, endpoint, params, page)
 		if err != nil {
 			return nil, err
 		}
 
 		// Cache the response
-		if data, err := json.Marshal(response); err == nil {
-			c.putInCache(cacheKey, data)
-		}
+		c.cacheResponse(endpoint, params, page, response)
 
 		// Convert and append movies
 		movies := c.convertMovies(response.Results)
@@ -219,6 +202,65 @@ func (c *Client) fetchMoviePages(
 	}
 
 	return allMovies, nil
+}
+
+// tryFetchFromCache attempts to fetch data from cache.
+func (c *Client) tryFetchFromCache(
+	endpoint string,
+	params url.Values,
+	page int,
+) (movies []Movie, totalPages int, found bool) {
+	pageParams := make(url.Values)
+	if params != nil {
+		pageParams = params
+	}
+	pageParams.Set("page", fmt.Sprintf("%d", page))
+
+	cacheKey := fmt.Sprintf("%s?%s", endpoint, pageParams.Encode())
+
+	if data := c.getFromCache(cacheKey); data != nil {
+		if response, err := c.parseMovieResponse(data); err == nil {
+			movies := c.convertMovies(response.Results)
+			return movies, response.TotalPages, true
+		}
+	}
+	return nil, 0, false
+}
+
+// makeAPIRequest makes the actual HTTP request to TMDB API.
+func (c *Client) makeAPIRequest(
+	ctx context.Context,
+	endpoint string,
+	params url.Values,
+	page int,
+) (*TMDBResponse, error) {
+	pageParams := make(url.Values)
+	if params != nil {
+		pageParams = params
+	}
+	pageParams.Set("page", fmt.Sprintf("%d", page))
+
+	return c.makeRequest(ctx, endpoint, pageParams)
+}
+
+// cacheResponse caches the API response.
+func (c *Client) cacheResponse(
+	endpoint string,
+	params url.Values,
+	page int,
+	response *TMDBResponse,
+) {
+	pageParams := make(url.Values)
+	if params != nil {
+		pageParams = params
+	}
+	pageParams.Set("page", fmt.Sprintf("%d", page))
+
+	cacheKey := fmt.Sprintf("%s?%s", endpoint, pageParams.Encode())
+
+	if data, err := json.Marshal(response); err == nil {
+		c.putInCache(cacheKey, data)
+	}
 }
 
 // parseMovieResponse parses cached movie response data.
@@ -279,9 +321,7 @@ func (c *Client) makeRequest(
 		break
 	}
 	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Log error but don't fail the request
-		}
+		_ = resp.Body.Close()
 	}()
 
 	// Read response
@@ -365,9 +405,7 @@ func (c *Client) loadGenres() {
 		return
 	}
 	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Log error but don't fail the operation
-		}
+		_ = resp.Body.Close()
 	}()
 
 	var genresResp TMDBGenresResponse

@@ -33,6 +33,16 @@ const (
 	GenresColWidth    = 25
 )
 
+// Table column numbers for configuration.
+const (
+	ColNumber = iota + 1
+	ColTitle
+	ColYear
+	ColRating
+	ColVotes
+	ColGenres
+)
+
 // FormatOptions controls output formatting.
 type FormatOptions struct {
 	Format           string
@@ -173,12 +183,12 @@ func formatTable(writer io.Writer, movies []Movie, options FormatOptions) error 
 
 	// Configure column properties
 	t.SetColumnConfigs([]table.ColumnConfig{
-		{Number: 1, Align: text.AlignCenter, WidthMax: NumberColWidth}, // #
-		{Number: 2, Align: text.AlignLeft, WidthMax: TitleColWidth},    // Title
-		{Number: 3, Align: text.AlignCenter, WidthMax: YearColWidth},   // Year
-		{Number: 4, Align: text.AlignRight, WidthMax: RatingColWidth},  // Rating
-		{Number: 5, Align: text.AlignRight, WidthMax: VotesColWidth},   // Votes
-		{Number: 6, Align: text.AlignLeft, WidthMax: GenresColWidth},   // Genres
+		{Number: ColNumber, Align: text.AlignCenter, WidthMax: NumberColWidth}, // #
+		{Number: ColTitle, Align: text.AlignLeft, WidthMax: TitleColWidth},     // Title
+		{Number: ColYear, Align: text.AlignCenter, WidthMax: YearColWidth},     // Year
+		{Number: ColRating, Align: text.AlignRight, WidthMax: RatingColWidth},  // Rating
+		{Number: ColVotes, Align: text.AlignRight, WidthMax: VotesColWidth},    // Votes
+		{Number: ColGenres, Align: text.AlignLeft, WidthMax: GenresColWidth},   // Genres
 	})
 
 	t.Render()
@@ -257,13 +267,13 @@ func formatYear(year int) string {
 	return strconv.Itoa(year)
 }
 
-// Error formatting.
+// FormatError formats error messages for output.
 func FormatError(writer io.Writer, err error) error {
 	_, writeErr := fmt.Fprintf(writer, "Error: %s\n", err.Error())
 	return writeErr
 }
 
-// Summary formatting for different commands.
+// FormatSummary formats summary information for different commands.
 func FormatSummary(writer io.Writer, movies []Movie, command string, useOriginal bool) {
 	if len(movies) == 0 {
 		return
@@ -276,29 +286,17 @@ func FormatSummary(writer io.Writer, movies []Movie, command string, useOriginal
 
 	switch command {
 	case "popular":
-		if _, err := fmt.Fprintf(writer, "Showing %d popular movies (%s)\n\n", len(movies), titleType); err != nil {
-			// Error is intentionally ignored in summary formatting
-		}
+		_, _ = fmt.Fprintf(writer, "Showing %d popular movies (%s)\n\n", len(movies), titleType)
 	case "top-rated":
-		if _, err := fmt.Fprintf(writer, "Showing %d top-rated movies (%s)\n\n", len(movies), titleType); err != nil {
-			// Error is intentionally ignored in summary formatting
-		}
+		_, _ = fmt.Fprintf(writer, "Showing %d top-rated movies (%s)\n\n", len(movies), titleType)
 	case "now-playing":
-		if _, err := fmt.Fprintf(writer, "Showing %d movies now playing (%s)\n\n", len(movies), titleType); err != nil {
-			// Error is intentionally ignored in summary formatting
-		}
+		_, _ = fmt.Fprintf(writer, "Showing %d movies now playing (%s)\n\n", len(movies), titleType)
 	case "upcoming":
-		if _, err := fmt.Fprintf(writer, "Showing %d upcoming movies (%s)\n\n", len(movies), titleType); err != nil {
-			// Error is intentionally ignored in summary formatting
-		}
+		_, _ = fmt.Fprintf(writer, "Showing %d upcoming movies (%s)\n\n", len(movies), titleType)
 	case "search":
-		if _, err := fmt.Fprintf(writer, "Found %d movies (%s)\n\n", len(movies), titleType); err != nil {
-			// Error is intentionally ignored in summary formatting
-		}
+		_, _ = fmt.Fprintf(writer, "Found %d movies (%s)\n\n", len(movies), titleType)
 	case "discover":
-		if _, err := fmt.Fprintf(writer, "Discovered %d movies (%s)\n\n", len(movies), titleType); err != nil {
-			// Error is intentionally ignored in summary formatting
-		}
+		_, _ = fmt.Fprintf(writer, "Discovered %d movies (%s)\n\n", len(movies), titleType)
 	}
 }
 

@@ -179,7 +179,7 @@ func handleConfigCommand() {
 	fmt.Print(internal.GetConfigHelp())
 }
 
-// Common flag parsing for all commands.
+// CommonFlags represents common command line flags used across different commands.
 type CommonFlags struct {
 	Format        string
 	MaxItems      int
