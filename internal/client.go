@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -37,40 +38,18 @@ type Client struct {
 	cache   map[string]cachedItem
 	cacheMu sync.RWMutex
 
-	// Genre cache
+	// Genre cache for movies
 	genres   map[int]string
 	genresMu sync.RWMutex
+
+	// Genre cache for TV shows
+	tvGenres   map[int]string
+	tvGenresMu sync.RWMutex
 }
 
 type cachedItem struct {
 	data   []byte
 	expiry time.Time
-}
-
-// TMDBResponse represents raw API response structure.
-type TMDBResponse struct {
-	Page         int         `json:"page"`
-	Results      []TMDBMovie `json:"results"`
-	TotalPages   int         `json:"total_pages"`
-	TotalResults int         `json:"total_results"`
-}
-
-type TMDBMovie struct {
-	ID            int     `json:"id"`
-	Title         string  `json:"title"`
-	OriginalTitle string  `json:"original_title"`
-	Overview      string  `json:"overview"`
-	ReleaseDate   string  `json:"release_date"`
-	VoteAverage   float64 `json:"vote_average"`
-	VoteCount     int     `json:"vote_count"`
-	GenreIDs      []int   `json:"genre_ids"`
-	Popularity    float64 `json:"popularity"`
-	Adult         bool    `json:"adult"`
-	Video         bool    `json:"video"`
-}
-
-type TMDBGenresResponse struct {
-	Genres []Genre `json:"genres"`
 }
 
 // NewClient creates a new TMDB client.
@@ -94,13 +73,17 @@ func NewClient(config Config) *Client {
 		rateLimiter: rateLimiter,
 		cache:       make(map[string]cachedItem),
 		genres:      make(map[int]string),
+		tvGenres:    make(map[int]string),
 	}
 
 	// Load genres in background
 	go client.loadGenres()
+	go client.loadTVGenres()
 
 	return client
 }
+
+// Movie API methods
 
 // GetPopularMovies fetches popular movies.
 func (c *Client) GetPopularMovies(ctx context.Context, maxItems int) ([]Movie, error) {
@@ -140,7 +123,44 @@ func (c *Client) DiscoverMovies(ctx context.Context, opts SearchOptions) ([]Movi
 	return c.fetchMoviePages(ctx, "/discover/movie", params, opts.MaxItems)
 }
 
-// fetchMoviePages handles pagination and returns consolidated results.
+// TV Show API methods
+
+// GetPopularTVShows fetches popular TV shows.
+func (c *Client) GetPopularTVShows(ctx context.Context, maxItems int) ([]TVShow, error) {
+	return c.fetchTVShowPages(ctx, TVPopularEndpoint, nil, maxItems)
+}
+
+// GetTopRatedTVShows fetches top-rated TV shows.
+func (c *Client) GetTopRatedTVShows(ctx context.Context, maxItems int) ([]TVShow, error) {
+	return c.fetchTVShowPages(ctx, TVTopRatedEndpoint, nil, maxItems)
+}
+
+// GetOnTheAirTVShows fetches TV shows currently on the air.
+func (c *Client) GetOnTheAirTVShows(ctx context.Context, maxItems int) ([]TVShow, error) {
+	return c.fetchTVShowPages(ctx, TVOnTheAirEndpoint, nil, maxItems)
+}
+
+// SearchTVShows searches for TV shows by query.
+func (c *Client) SearchTVShows(ctx context.Context, query string, maxItems int) ([]TVShow, error) {
+	if query == "" {
+		return nil, fmt.Errorf("search query cannot be empty")
+	}
+
+	params := url.Values{}
+	params.Set("query", query)
+
+	return c.fetchTVShowPages(ctx, TVSearchEndpoint, params, maxItems)
+}
+
+// DiscoverTVShows discovers TV shows with filters.
+func (c *Client) DiscoverTVShows(ctx context.Context, opts SearchOptions) ([]TVShow, error) {
+	params := c.buildTVDiscoverParams(opts)
+	return c.fetchTVShowPages(ctx, TVDiscoverEndpoint, params, opts.MaxItems)
+}
+
+// fetchMoviePages handles pagination and returns consolidated movie results.
+//
+//nolint:dupl // Similar structure to fetchTVShowPages but different types
 func (c *Client) fetchMoviePages(
 	ctx context.Context,
 	endpoint string,
@@ -155,48 +175,28 @@ func (c *Client) fetchMoviePages(
 	page := 1
 
 	for len(allMovies) < maxItems {
-		// Check context cancellation
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		// Try cache first and continue if found
-		if movies, totalPages, shouldContinue := c.tryFetchFromCache(endpoint, params, page); shouldContinue {
-			allMovies = append(allMovies, movies...)
-			if page >= totalPages || len(allMovies) >= maxItems {
-				break
-			}
-			page++
-			continue
-		}
-
-		// Make API call with rate limiting
-		if err := c.rateLimiter.Wait(ctx); err != nil {
-			return nil, fmt.Errorf("rate limit: %w", err)
-		}
-
-		response, err := c.makeAPIRequest(ctx, endpoint, params, page)
+		pageData, err := c.fetchPageData(ctx, endpoint, params, page, "")
 		if err != nil {
 			return nil, err
 		}
+		if pageData == nil {
+			break
+		}
 
-		// Cache the response
-		c.cacheResponse(endpoint, params, page, response)
+		var response TMDBResponse
+		if err := json.Unmarshal(pageData, &response); err != nil {
+			return nil, fmt.Errorf("parse response: %w", err)
+		}
 
-		// Convert and append movies
 		movies := c.convertMovies(response.Results)
 		allMovies = append(allMovies, movies...)
 
-		// Check if we have more pages and need more items
 		if page >= response.TotalPages || len(allMovies) >= maxItems {
 			break
 		}
 		page++
 	}
 
-	// Trim to requested size
 	if len(allMovies) > maxItems {
 		allMovies = allMovies[:maxItems]
 	}
@@ -204,80 +204,118 @@ func (c *Client) fetchMoviePages(
 	return allMovies, nil
 }
 
-// tryFetchFromCache attempts to fetch data from cache.
-func (c *Client) tryFetchFromCache(
+// fetchTVShowPages handles pagination and returns consolidated TV show results.
+//
+//nolint:dupl // Similar structure to fetchMoviePages but different types
+func (c *Client) fetchTVShowPages(
+	ctx context.Context,
 	endpoint string,
 	params url.Values,
-	page int,
-) (movies []Movie, totalPages int, found bool) {
-	pageParams := make(url.Values)
-	if params != nil {
-		pageParams = params
+	maxItems int,
+) ([]TVShow, error) {
+	if maxItems <= 0 {
+		maxItems = 20
 	}
-	pageParams.Set("page", fmt.Sprintf("%d", page))
 
-	cacheKey := fmt.Sprintf("%s?%s", endpoint, pageParams.Encode())
+	var allTVShows []TVShow
+	page := 1
 
-	if data := c.getFromCache(cacheKey); data != nil {
-		if response, err := c.parseMovieResponse(data); err == nil {
-			movies := c.convertMovies(response.Results)
-			return movies, response.TotalPages, true
+	for len(allTVShows) < maxItems {
+		pageData, err := c.fetchPageData(ctx, endpoint, params, page, "tv_")
+		if err != nil {
+			return nil, err
 		}
+		if pageData == nil {
+			break
+		}
+
+		var response TMDBTVResponse
+		if err := json.Unmarshal(pageData, &response); err != nil {
+			return nil, fmt.Errorf("parse response: %w", err)
+		}
+
+		tvShows := c.convertTVShows(response.Results)
+		allTVShows = append(allTVShows, tvShows...)
+
+		if page >= response.TotalPages || len(allTVShows) >= maxItems {
+			break
+		}
+		page++
 	}
-	return nil, 0, false
+
+	if len(allTVShows) > maxItems {
+		allTVShows = allTVShows[:maxItems]
+	}
+
+	return allTVShows, nil
 }
 
-// makeAPIRequest makes the actual HTTP request to TMDB API.
-func (c *Client) makeAPIRequest(
+// fetchPageData fetches a single page of data, either from cache or API.
+func (c *Client) fetchPageData(
 	ctx context.Context,
 	endpoint string,
 	params url.Values,
 	page int,
-) (*TMDBResponse, error) {
-	pageParams := make(url.Values)
-	if params != nil {
-		pageParams = params
-	}
-	pageParams.Set("page", fmt.Sprintf("%d", page))
-
-	return c.makeRequest(ctx, endpoint, pageParams)
-}
-
-// cacheResponse caches the API response.
-func (c *Client) cacheResponse(
-	endpoint string,
-	params url.Values,
-	page int,
-	response *TMDBResponse,
-) {
-	pageParams := make(url.Values)
-	if params != nil {
-		pageParams = params
-	}
-	pageParams.Set("page", fmt.Sprintf("%d", page))
-
-	cacheKey := fmt.Sprintf("%s?%s", endpoint, pageParams.Encode())
-
-	if data, err := json.Marshal(response); err == nil {
-		c.putInCache(cacheKey, data)
-	}
-}
-
-// parseMovieResponse parses cached movie response data.
-func (c *Client) parseMovieResponse(data []byte) (*TMDBResponse, error) {
-	var response TMDBResponse
-	if err := json.Unmarshal(data, &response); err != nil {
+	cachePrefix string,
+) ([]byte, error) {
+	// Check context cancellation
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	cacheKey := c.buildCacheKey(cachePrefix, endpoint, params, page)
+
+	// Try cache first
+	if data := c.getFromCache(cacheKey); data != nil {
+		return data, nil
+	}
+
+	// Make API call with rate limiting
+	if err := c.rateLimiter.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("rate limit: %w", err)
+	}
+
+	// Make request
+	body, err := c.makeGenericRequest(ctx, endpoint, params, page)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the response
+	c.putInCache(cacheKey, body)
+
+	return body, nil
 }
 
-// makeRequest makes HTTP request to TMDB API.
-func (c *Client) makeRequest(
+// buildCacheKey creates a cache key for the given parameters.
+func (c *Client) buildCacheKey(prefix, endpoint string, params url.Values, page int) string {
+	pageParams := make(url.Values)
+	maps.Copy(pageParams, params)
+	pageParams.Set("page", fmt.Sprintf("%d", page))
+
+	return fmt.Sprintf("%s%s?%s", prefix, endpoint, pageParams.Encode())
+}
+
+// makeGenericRequest is a generic function to make HTTP requests.
+func (c *Client) makeGenericRequest(
 	ctx context.Context,
 	endpoint string,
 	params url.Values,
-) (*TMDBResponse, error) {
+	page int,
+) ([]byte, error) {
+	pageParams := make(url.Values)
+	maps.Copy(pageParams, params)
+	pageParams.Set("page", fmt.Sprintf("%d", page))
+
+	return c.makeHTTPRequest(ctx, endpoint, pageParams)
+}
+
+// makeHTTPRequest makes the actual HTTP request to TMDB API.
+func (c *Client) makeHTTPRequest(
+	ctx context.Context,
+	endpoint string,
+	params url.Values,
+) ([]byte, error) {
 	// Build URL
 	apiURL, err := url.Parse(c.config.BaseURL + endpoint)
 	if err != nil {
@@ -335,13 +373,7 @@ func (c *Client) makeRequest(
 		return nil, c.handleAPIError(resp.StatusCode, body)
 	}
 
-	// Parse response
-	var response TMDBResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
-	}
-
-	return &response, nil
+	return body, nil
 }
 
 // convertMovies converts TMDB API response to our simplified format.
@@ -371,7 +403,46 @@ func (c *Client) convertMovies(tmdbMovies []TMDBMovie) []Movie {
 	return movies
 }
 
-// mapGenres converts genre IDs to names.
+// convertTVShows converts TMDB TV API response to our simplified format.
+func (c *Client) convertTVShows(tmdbTVShows []TMDBTVShow) []TVShow {
+	shows := make([]TVShow, len(tmdbTVShows))
+
+	for i, tm := range tmdbTVShows {
+		shows[i] = c.convertTVShowSafely(tm)
+	}
+
+	return shows
+}
+
+// convertTVShowSafely converts a single TMDB TV show with error handling.
+func (c *Client) convertTVShowSafely(tmdbShow TMDBTVShow) TVShow {
+	// Map genres
+	genreNames := c.mapTVGenres(tmdbShow.GenreIDs)
+
+	show := TVShow{
+		ID:           tmdbShow.ID,
+		Name:         tmdbShow.Name,
+		OriginalName: tmdbShow.OriginalName,
+		Year:         ParseTVYear(tmdbShow.FirstAirDate),
+		Rating:       tmdbShow.VoteAverage,
+		Votes:        tmdbShow.VoteCount,
+		Popularity:   tmdbShow.Popularity,
+		Genres:       strings.Join(genreNames, ", "),
+		Overview:     tmdbShow.Overview,
+		Language:     tmdbShow.OriginalLanguage,
+		Adult:        tmdbShow.Adult,
+		FirstAirDate: tmdbShow.FirstAirDate,
+	}
+
+	// Fallback for empty name
+	if show.Name == "" {
+		show.Name = "Unknown TV Show"
+	}
+
+	return show
+}
+
+// mapGenres converts genre IDs to names for movies.
 func (c *Client) mapGenres(genreIDs []int) []string {
 	c.genresMu.RLock()
 	defer c.genresMu.RUnlock()
@@ -385,15 +456,51 @@ func (c *Client) mapGenres(genreIDs []int) []string {
 	return names
 }
 
-// loadGenres loads genre mappings from API.
+// mapTVGenres converts genre IDs to names for TV shows.
+func (c *Client) mapTVGenres(genreIDs []int) []string {
+	c.tvGenresMu.RLock()
+	defer c.tvGenresMu.RUnlock()
+
+	names := make([]string, 0, len(genreIDs))
+	for _, id := range genreIDs {
+		if name, ok := c.tvGenres[id]; ok {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// loadGenres loads movie genre mappings from API.
 func (c *Client) loadGenres() {
+	c.loadGenreMapping("/genre/movie/list", func(genres []Genre) {
+		c.genresMu.Lock()
+		defer c.genresMu.Unlock()
+		for _, genre := range genres {
+			c.genres[genre.ID] = genre.Name
+		}
+	})
+}
+
+// loadTVGenres loads TV show genre mappings from API.
+func (c *Client) loadTVGenres() {
+	c.loadGenreMapping(TVGenresEndpoint, func(genres []Genre) {
+		c.tvGenresMu.Lock()
+		defer c.tvGenresMu.Unlock()
+		for _, genre := range genres {
+			c.tvGenres[genre.ID] = genre.Name
+		}
+	})
+}
+
+// loadGenreMapping is a generic function to load genre mappings.
+func (c *Client) loadGenreMapping(endpoint string, handler func([]Genre)) {
 	ctx, cancel := context.WithTimeout(context.Background(), LoadGenresTimeout*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"GET",
-		c.config.BaseURL+"/genre/movie/list?api_key="+c.config.APIKey,
+		c.config.BaseURL+endpoint+"?api_key="+c.config.APIKey,
 		nil,
 	)
 	if err != nil {
@@ -413,23 +520,39 @@ func (c *Client) loadGenres() {
 		return
 	}
 
-	c.genresMu.Lock()
-	defer c.genresMu.Unlock()
-
-	for _, genre := range genresResp.Genres {
-		c.genres[genre.ID] = genre.Name
-	}
+	handler(genresResp.Genres)
 }
 
-// buildDiscoverParams converts search options to API parameters.
+// buildDiscoverParams converts search options to API parameters for movies.
 func (c *Client) buildDiscoverParams(opts SearchOptions) url.Values {
+	params := c.buildBaseDiscoverParams(opts)
+
+	// Movie-specific parameters
+	if opts.Year > 0 {
+		params.Set("primary_release_year", fmt.Sprintf("%d", opts.Year))
+	}
+
+	return params
+}
+
+// buildTVDiscoverParams converts search options to API parameters for TV shows.
+func (c *Client) buildTVDiscoverParams(opts SearchOptions) url.Values {
+	params := c.buildBaseDiscoverParams(opts)
+
+	// TV-specific parameters
+	if opts.Year > 0 {
+		params.Set("first_air_date_year", fmt.Sprintf("%d", opts.Year))
+	}
+
+	return params
+}
+
+// buildBaseDiscoverParams builds common discover parameters for both movies and TV shows.
+func (c *Client) buildBaseDiscoverParams(opts SearchOptions) url.Values {
 	params := make(url.Values)
 
 	if opts.Language != "" {
 		params.Set("with_original_language", opts.Language)
-	}
-	if opts.Year > 0 {
-		params.Set("primary_release_year", fmt.Sprintf("%d", opts.Year))
 	}
 	if opts.MinRating > 0 {
 		params.Set("vote_average.gte", fmt.Sprintf("%.1f", opts.MinRating))
@@ -437,6 +560,8 @@ func (c *Client) buildDiscoverParams(opts SearchOptions) url.Values {
 	if opts.MaxRating > 0 {
 		params.Set("vote_average.lte", fmt.Sprintf("%.1f", opts.MaxRating))
 	}
+
+	// Genres
 	if len(opts.IncludeGenres) > 0 {
 		genreStr := make([]string, len(opts.IncludeGenres))
 		for i, id := range opts.IncludeGenres {
@@ -444,6 +569,7 @@ func (c *Client) buildDiscoverParams(opts SearchOptions) url.Values {
 		}
 		params.Set("with_genres", strings.Join(genreStr, ","))
 	}
+
 	if len(opts.ExcludeGenres) > 0 {
 		genreStr := make([]string, len(opts.ExcludeGenres))
 		for i, id := range opts.ExcludeGenres {

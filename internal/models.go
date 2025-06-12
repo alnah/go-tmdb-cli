@@ -2,6 +2,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -23,6 +24,24 @@ const (
 	RecentYearsBack       = 2
 	DefaultTimeout        = 30
 	DefaultCacheTTL       = 5
+)
+
+// TV-specific constants.
+const (
+	TVMinValidYear      = 1928 // First television broadcast
+	TVMaxReasonableYear = 2030
+	TVDefaultTimeout    = 30
+	TVCacheTTL          = 5 // minutes
+)
+
+// TV Show endpoints.
+const (
+	TVPopularEndpoint  = "/tv/popular"
+	TVTopRatedEndpoint = "/tv/top_rated"
+	TVOnTheAirEndpoint = "/tv/on_the_air"
+	TVSearchEndpoint   = "/search/tv"
+	TVDiscoverEndpoint = "/discover/tv"
+	TVGenresEndpoint   = "/genre/tv/list"
 )
 
 // TMDB genre ID constants.
@@ -63,12 +82,47 @@ type Movie struct {
 	ReleaseDate   string  `json:"release_date,omitempty"`
 }
 
+// TVShow represents a simplified TV show structure.
+type TVShow struct {
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`          // Equivalent to Movie.Title
+	OriginalName string  `json:"original_name"` // Equivalent to Movie.OriginalTitle
+	Year         int     `json:"year"`          // Extracted from first_air_date
+	Rating       float64 `json:"rating"`        // vote_average
+	Votes        int     `json:"votes"`         // vote_count
+	Popularity   float64 `json:"popularity"`
+	Genres       string  `json:"genres"` // Mapped genres as string
+	Overview     string  `json:"overview,omitempty"`
+	Language     string  `json:"language"`
+	Adult        bool    `json:"adult"`
+	FirstAirDate string  `json:"first_air_date,omitempty"` // First broadcast date
+}
+
+// Validate validates the TVShow data structure.
+func (tv *TVShow) Validate() error {
+	if tv.Name == "" {
+		return errors.New("TV show name is required")
+	}
+	if tv.ID <= 0 {
+		return errors.New("TV show ID must be positive")
+	}
+	return nil
+}
+
 // SearchResult represents paginated search results.
 type SearchResult struct {
 	Movies       []Movie `json:"movies"`
 	Page         int     `json:"page"`
 	TotalPages   int     `json:"total_pages"`
 	TotalResults int     `json:"total_results"`
+}
+
+// TVSearchResult represents paginated TV search results.
+type TVSearchResult struct {
+	TVShows      []TVShow `json:"tv_shows"`
+	Page         int      `json:"page"`
+	TotalPages   int      `json:"total_pages"`
+	TotalResults int      `json:"total_results"`
 }
 
 // SearchOptions represents search parameters.
@@ -86,7 +140,7 @@ type SearchOptions struct {
 	MaxItems      int
 }
 
-// Genre represents a movie genre.
+// Genre represents a movie/TV genre.
 type Genre struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
@@ -101,6 +155,57 @@ type Config struct {
 	CacheTTL   time.Duration `yaml:"cache_ttl"`
 	LogLevel   string        `yaml:"log_level"`
 	Format     string        `yaml:"format"`
+}
+
+// TMDBResponse represents raw API response structure for movies.
+type TMDBResponse struct {
+	Page         int         `json:"page"`
+	Results      []TMDBMovie `json:"results"`
+	TotalPages   int         `json:"total_pages"`
+	TotalResults int         `json:"total_results"`
+}
+
+// TMDBMovie represents the TMDB API movie structure.
+type TMDBMovie struct {
+	ID            int     `json:"id"`
+	Title         string  `json:"title"`
+	OriginalTitle string  `json:"original_title"`
+	Overview      string  `json:"overview"`
+	ReleaseDate   string  `json:"release_date"`
+	VoteAverage   float64 `json:"vote_average"`
+	VoteCount     int     `json:"vote_count"`
+	GenreIDs      []int   `json:"genre_ids"`
+	Popularity    float64 `json:"popularity"`
+	Adult         bool    `json:"adult"`
+	Video         bool    `json:"video"`
+}
+
+// TMDBTVResponse represents raw API response structure for TV shows.
+type TMDBTVResponse struct {
+	Page         int          `json:"page"`
+	Results      []TMDBTVShow `json:"results"`
+	TotalPages   int          `json:"total_pages"`
+	TotalResults int          `json:"total_results"`
+}
+
+// TMDBTVShow represents the TMDB API TV show structure.
+type TMDBTVShow struct {
+	ID               int     `json:"id"`
+	Name             string  `json:"name"`
+	OriginalName     string  `json:"original_name"`
+	Overview         string  `json:"overview"`
+	FirstAirDate     string  `json:"first_air_date"`
+	VoteAverage      float64 `json:"vote_average"`
+	VoteCount        int     `json:"vote_count"`
+	GenreIDs         []int   `json:"genre_ids"`
+	Popularity       float64 `json:"popularity"`
+	Adult            bool    `json:"adult"`
+	OriginalLanguage string  `json:"original_language"`
+}
+
+// TMDBGenresResponse represents the TMDB genres API response.
+type TMDBGenresResponse struct {
+	Genres []Genre `json:"genres"`
 }
 
 // Helper functions (not methods to keep it simple)
@@ -151,6 +256,11 @@ func ParseYear(releaseDate string) int {
 	return 0
 }
 
+// ParseTVYear extracts year from first_air_date string.
+func ParseTVYear(firstAirDate string) int {
+	return ParseYear(firstAirDate)
+}
+
 // ShortenOverview truncates overview to specified length.
 func ShortenOverview(overview string, maxLength int) string {
 	if len(overview) <= maxLength {
@@ -166,17 +276,17 @@ func ShortenOverview(overview string, maxLength int) string {
 	return truncated + "..."
 }
 
-// IsHighlyRated determines if a movie is highly rated.
+// IsHighlyRated determines if a movie/TV show is highly rated.
 func IsHighlyRated(rating float64, votes int) bool {
 	return rating >= HighRatingThreshold && votes >= MinVotesForUncertain
 }
 
-// IsPopular determines if a movie is popular.
+// IsPopular determines if a movie/TV show is popular.
 func IsPopular(popularity float64, votes int) bool {
 	return popularity >= PopularityThreshold || votes >= PopularVotesThreshold
 }
 
-// IsRecent determines if a movie is recent.
+// IsRecent determines if a movie/TV show is recent.
 func IsRecent(year int) bool {
 	currentYear := time.Now().Year()
 	return year >= currentYear-RecentYearsBack
@@ -188,6 +298,14 @@ func BuildDisplayTitle(title, originalTitle string) string {
 		return title
 	}
 	return fmt.Sprintf("%s (%s)", title, originalTitle)
+}
+
+// BuildDisplayTVTitle creates display title for TV shows with original name if different.
+func BuildDisplayTVTitle(name, originalName string) string {
+	if originalName == "" || originalName == name {
+		return name
+	}
+	return fmt.Sprintf("%s (%s)", name, originalName)
 }
 
 // ValidateSearchOptions validates search parameters.
@@ -266,3 +384,70 @@ func ParseGenres(genreNames []string) ([]int, error) {
 	}
 	return ids, nil
 }
+
+// MediaItem interface for unified processing of movies and TV shows.
+type MediaItem interface {
+	GetID() int
+	GetTitle() string         // Name for TV, Title for Movie
+	GetOriginalTitle() string // OriginalName for TV, OriginalTitle for Movie
+	GetYear() int
+	GetRating() float64
+	GetVotes() int
+	GetPopularity() float64
+	GetGenres() string
+	GetOverview() string
+}
+
+// GetID returns the movie ID.
+func (m Movie) GetID() int { return m.ID }
+
+// GetTitle returns the movie title.
+func (m Movie) GetTitle() string { return m.Title }
+
+// GetOriginalTitle returns the movie original title.
+func (m Movie) GetOriginalTitle() string { return m.OriginalTitle }
+
+// GetYear returns the movie year.
+func (m Movie) GetYear() int { return m.Year }
+
+// GetRating returns the movie rating.
+func (m Movie) GetRating() float64 { return m.Rating }
+
+// GetVotes returns the movie votes.
+func (m Movie) GetVotes() int { return m.Votes }
+
+// GetPopularity returns the movie popularity.
+func (m Movie) GetPopularity() float64 { return m.Popularity }
+
+// GetGenres returns the movie genres.
+func (m Movie) GetGenres() string { return m.Genres }
+
+// GetOverview returns the movie overview.
+func (m Movie) GetOverview() string { return m.Overview }
+
+// GetID returns the TV show ID.
+func (tv TVShow) GetID() int { return tv.ID }
+
+// GetTitle returns the TV show name.
+func (tv TVShow) GetTitle() string { return tv.Name }
+
+// GetOriginalTitle returns the TV show original name.
+func (tv TVShow) GetOriginalTitle() string { return tv.OriginalName }
+
+// GetYear returns the TV show year.
+func (tv TVShow) GetYear() int { return tv.Year }
+
+// GetRating returns the TV show rating.
+func (tv TVShow) GetRating() float64 { return tv.Rating }
+
+// GetVotes returns the TV show votes.
+func (tv TVShow) GetVotes() int { return tv.Votes }
+
+// GetPopularity returns the TV show popularity.
+func (tv TVShow) GetPopularity() float64 { return tv.Popularity }
+
+// GetGenres returns the TV show genres.
+func (tv TVShow) GetGenres() string { return tv.Genres }
+
+// GetOverview returns the TV show overview.
+func (tv TVShow) GetOverview() string { return tv.Overview }
