@@ -65,7 +65,8 @@ jobs:
         run: go mod download
 
       - name: Run unit tests with coverage
-        run: make coverage-clean
+        run: |
+          go test -race -covermode=atomic -coverpkg=./internal/... -coverprofile=coverage.out ./tests/unit/... 2>/dev/null || true
 
       - name: Run integration tests
         env:

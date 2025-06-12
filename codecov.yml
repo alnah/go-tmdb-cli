@@ -1,0 +1,30 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+  ignore:
+    - "tests/"
+    - "**/*_test.go"
+    - "**/test_*.go"
+    - "cmd/main.go" # Often hard to test
+    - "**/*.pb.go" # Generated files
+
+  status:
+    project:
+      default:
+        target: 70%
+        threshold: 5%
+        base: auto
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+comment:
+  layout: "condensed_header, diff, files"
+  behavior: default
+  require_changes: false
