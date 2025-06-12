@@ -91,8 +91,8 @@ fix:
 		exit 1; \
 	fi
 
-# Run unit tests only - FIXED: Only test internal packages, exclude cmd for now
-test:
+# Run unit tests only
+ test:
 	@echo "$(BLUE)Running unit tests with coverage...$(NC)"
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -v -race -coverpkg=./internal/... -coverprofile=$(COVERAGE_DIR)/coverage.out ./tests/unit/... 2>/dev/null || true
