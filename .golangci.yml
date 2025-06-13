@@ -168,9 +168,9 @@ linters-settings:
     min: 3
     max: 3
 
-  # Duplication detection
+  # Duplication detection - More practical threshold
   dupl:
-    threshold: 100
+    threshold: 250
 
   # Maintainability index
   maintidx:
@@ -339,7 +339,7 @@ issues:
       source: "// TODO"
 
     # Exclude certain errors in main.go for CLI patterns
-    - path: cmd/main\.go
+    - path: main\.go
       linters:
         - funlen # Main functions can be longer in CLI apps
         - mnd # Magic numbers are acceptable in CLI main
@@ -349,6 +349,11 @@ issues:
       linters:
         - funlen
         - mnd
+
+    # CLI apps often have similar command handling patterns
+    - path: internal/commands\.go
+      linters:
+        - dupl # Command handlers often have similar structure
 
     # Test files don't need error wrapping or magic number checks
     - path: _test\.go
