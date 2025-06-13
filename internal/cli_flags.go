@@ -172,8 +172,3 @@ func createSearchFlagSet(name string) (*flag.FlagSet, *string, *int, *bool, *boo
 
 	return fs, format, maxItems, originalTitle, noHeader
 }
-
-// CleanQuery removes quotes from search queries.
-func CleanQuery(query string) string {
-	return strings.Trim(query, `"'`)
-}
