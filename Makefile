@@ -16,7 +16,7 @@
 
 # Variables
 BINARY_NAME=tmdb-cli
-CMD_DIR=./cmd
+CMD_DIR=.
 BUILD_DIR=./bin
 DIST_DIR=./dist
 COVERAGE_DIR=./coverage
@@ -91,47 +91,32 @@ fix:
 		exit 1; \
 	fi
 
-# Run unit tests only
- test:
-	@echo "$(BLUE)Running unit tests with coverage...$(NC)"
+## Testing targets
+
+# Run tests
+test:
+	@echo "$(BLUE)Running tests...$(NC)"
+	@go test -v ./...
+
+# Run tests with race detection
+test-race:
+	@echo "$(BLUE)Running tests with race detection...$(NC)"
+	@go test -v -race ./...
+
+# Run tests with coverage
+test-coverage:
+	@echo "$(BLUE)Running tests with coverage...$(NC)"
 	@mkdir -p $(COVERAGE_DIR)
-	@go test -v -race -coverpkg=./internal/... -coverprofile=$(COVERAGE_DIR)/coverage.out ./tests/unit/... 2>/dev/null || true
+	@go test -v -coverprofile=$(COVERAGE_DIR)/coverage.out ./...
+	@go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
+	@echo "$(GREEN)Coverage report generated at $(COVERAGE_DIR)/coverage.html$(NC)"
 
-# Run all tests including integration and e2e
-test-all:
-	@echo "$(BLUE)Running all tests with coverage...$(NC)"
-	@mkdir -p $(COVERAGE_DIR)
-	@go test -v -race -coverpkg=./internal/... -coverprofile=$(COVERAGE_DIR)/coverage.out ./tests/unit/... ./tests/integration/... ./tests/e2e/... 2>/dev/null || true
-
-# Run tests with coverage report
-coverage: test
-	@echo "$(BLUE)Generating coverage report...$(NC)"
-	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
-		go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html; \
-		go tool cover -func=$(COVERAGE_DIR)/coverage.out | grep total:; \
-		echo "$(GREEN)Coverage report generated: $(COVERAGE_DIR)/coverage.html$(NC)"; \
-	else \
-		echo "$(YELLOW)No coverage data found$(NC)"; \
-	fi
-
-# Generate coverage report excluding test packages - FIXED: Use internal packages only
-coverage-clean: test
-	@echo "$(BLUE)Coverage already clean - tests in separate directory...$(NC)"
-	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
-		cp $(COVERAGE_DIR)/coverage.out $(COVERAGE_DIR)/coverage-clean.out; \
-		go tool cover -html=$(COVERAGE_DIR)/coverage-clean.out -o $(COVERAGE_DIR)/coverage-clean.html; \
-		go tool cover -func=$(COVERAGE_DIR)/coverage-clean.out | grep total: || echo "total:\t\t\t(statements)\t0.0%"; \
-		echo "$(GREEN)Clean coverage report generated: $(COVERAGE_DIR)/coverage-clean.html$(NC)"; \
-	else \
-		echo "$(YELLOW)No coverage data found$(NC)"; \
-	fi
-
-# Coverage with threshold check - FIXED: Better error handling
-coverage-check: coverage-clean
+# Check coverage threshold
+coverage-check: test-coverage
 	@echo "$(BLUE)Checking coverage threshold...$(NC)"
-	@if [ -f $(COVERAGE_DIR)/coverage-clean.out ]; then \
-		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage-clean.out 2>/dev/null | grep total: | awk '{print $$3}' | sed 's/%//' || echo "0"); \
-		echo "Coverage: $$COVERAGE%"; \
+	@if [ -f "$(COVERAGE_DIR)/coverage.out" ]; then \
+		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage.out | grep total | grep -oE '[0-9]+\.[0-9]+'); \
+		echo "Current coverage: $$COVERAGE%"; \
 		if command -v bc >/dev/null 2>&1; then \
 			if [ $$(echo "$$COVERAGE < 70" | bc -l 2>/dev/null || echo "1") -eq 1 ]; then \
 				echo "$(RED)Error: Coverage $$COVERAGE% is below minimum threshold of 70%$(NC)"; \
@@ -289,49 +274,47 @@ clean-all: clean
 	@go clean -cache
 
 # Check code quality with updated linter
-check: deps fmt vet lint test security
-	@echo "$(GREEN)All quality checks passed with golangci-lint $(GOLANGCI_LINT_VERSION)!$(NC)"
+check: deps fmt vet lint test security coverage-check
 
-# Prepare for release (run all checks)
-pre-release: clean check test-integration release-test
-	@echo "$(GREEN)Ready for release!$(NC)"
+# Pre-release checks
+pre-release: clean check release-test
+	@echo "$(GREEN)Pre-release checks completed successfully$(NC)"
 
-# Development workflow
+# Quick development workflow
 dev: deps fmt vet test build
-	@echo "$(GREEN)Development build complete!$(NC)"
 
 # Development workflow with auto-fix
 dev-fix: deps fmt fix test build
-	@echo "$(GREEN)Development build with auto-fix complete!$(NC)"
 
 # Show version information
 version:
-	@echo "Version: $(VERSION)"
+	@echo "TMDB CLI $(VERSION)"
 	@echo "Build Date: $(BUILD_DATE)"
 	@echo "Git Commit: $(GIT_COMMIT)"
-	@echo "Go Version: $$(go version)"
-	@echo "golangci-lint Version: $(GOLANGCI_LINT_VERSION)"
 
 # Show help
 help:
-	@echo "$(BLUE)TMDB CLI Makefile - golangci-lint $(GOLANGCI_LINT_VERSION)$(NC)"
+	@echo "$(GREEN)TMDB CLI Makefile$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Development:$(NC)"
-	@echo "  deps              Install dependencies"
-	@echo "  fmt               Format code"
-	@echo "  vet               Vet code"
+	@echo "$(YELLOW)Quality:$(NC)"
+	@echo "  deps              Download and tidy dependencies"
+	@echo "  fmt               Format code with gofmt"
+	@echo "  vet               Vet code with go vet"
 	@echo "  lint              Lint code with golangci-lint $(GOLANGCI_LINT_VERSION)"
 	@echo "  fix               Auto-fix code issues with golangci-lint"
+	@echo "  check             Run all quality checks (deps, fmt, vet, lint, test, security, coverage)"
+	@echo ""
+	@echo "$(YELLOW)Testing:$(NC)"
 	@echo "  test              Run unit tests"
-	@echo "  test-all          Run all tests (unit, integration, e2e)"
+	@echo "  test-race         Run tests with race detection"
+	@echo "  test-coverage     Run tests with coverage report"
+	@echo "  coverage-check    Check coverage meets 70% threshold"
 	@echo "  test-integration  Run integration tests (requires TMDB_API_KEY)"
-	@echo "  test-e2e          Run end-to-end tests"
-	@echo "  coverage          Generate test coverage report"
-	@echo "  coverage-clean    Generate coverage report excluding test files"
-	@echo "  coverage-check    Check coverage threshold (excluding tests)"
+	@echo "  test-e2e          Run end-to-end tests (requires TMDB_API_KEY)"
 	@echo "  benchmark         Run benchmarks"
-	@echo "  security          Run security scan (requires gosec)"
-	@echo "  check             Run all quality checks"
+	@echo "  security          Run security scan with gosec"
+	@echo ""
+	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  dev               Development workflow (deps, fmt, vet, test, build)"
 	@echo "  dev-fix           Development workflow with auto-fix (deps, fmt, fix, test, build)"
 	@echo ""
