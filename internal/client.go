@@ -561,6 +561,14 @@ func (c *Client) buildBaseDiscoverParams(opts SearchOptions) url.Values {
 		params.Set("vote_average.lte", fmt.Sprintf("%.1f", opts.MaxRating))
 	}
 
+	// Add vote count filters
+	if opts.MinVotes > 0 {
+		params.Set("vote_count.gte", fmt.Sprintf("%d", opts.MinVotes))
+	}
+	if opts.MaxVotes > 0 {
+		params.Set("vote_count.lte", fmt.Sprintf("%d", opts.MaxVotes))
+	}
+
 	// Genres
 	if len(opts.IncludeGenres) > 0 {
 		genreStr := make([]string, len(opts.IncludeGenres))
@@ -582,6 +590,10 @@ func (c *Client) buildBaseDiscoverParams(opts SearchOptions) url.Values {
 	sortBy := "popularity"
 	if opts.SortBy != "" {
 		sortBy = opts.SortBy
+		// Handle special case for vote sorting
+		if sortBy == "votes" {
+			sortBy = "vote_count"
+		}
 	}
 	sortOrder := "desc"
 	if opts.SortOrder != "" {

@@ -58,8 +58,11 @@ SEARCH OPTIONS:
 DISCOVER OPTIONS:
     --genres action,comedy       Include genres
     --exclude horror,thriller    Exclude genres
-    --sort popularity|rating     Sort by field
+    --sort popularity|rating|votes|release_date|title
+                                 Sort by field
     --order asc|desc             Sort order
+    --min-votes N                Minimum vote count
+    --max-votes N                Maximum vote count
 
 EXAMPLES:
     tmdb popular                 # 20 popular movies
@@ -67,12 +70,13 @@ EXAMPLES:
     tmdb search "action 2023"    # Search action movies from 2023
     tmdb top-rated --format json # Top movies as JSON
     tmdb discover --genres action --year 2023 --min-rating 7
+    tmdb discover --sort votes --order desc --min-votes 1000
     tmdb now-playing --original-title
 
     tmdb tv popular              # 20 popular TV shows
     tmdb tv search "Breaking"    # Search for TV shows with "Breaking"
     tmdb tv on-the-air 10        # 10 currently airing TV shows
-    tmdb tv discover --genres drama --min-rating 8
+    tmdb tv discover --genres drama --min-rating 8 --min-votes 500
 
 CONFIGURATION:
     Set TMDB_API_KEY environment variable or create config file.
@@ -107,9 +111,12 @@ DISCOVER OPTIONS:
     --year YEAR                  First air year
     --min-rating N               Minimum rating (0-10)
     --max-rating N               Maximum rating (0-10)
+    --min-votes N                Minimum vote count
+    --max-votes N                Maximum vote count
     --genres comedy,drama        Include genres
     --exclude reality            Exclude genres
-    --sort popularity|rating     Sort by field
+    --sort popularity|rating|votes|first_air_date|name
+                                 Sort by field
     --order asc|desc             Sort order
 
 EXAMPLES:
@@ -117,5 +124,6 @@ EXAMPLES:
     tmdb tv search "The Office"  # Search for The Office
     tmdb tv on-the-air --format json
     tmdb tv discover --genres comedy --min-rating 8
+    tmdb tv discover --sort votes --min-votes 5000
 `)
 }

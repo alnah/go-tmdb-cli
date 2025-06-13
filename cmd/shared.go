@@ -72,6 +72,8 @@ type DiscoverFlags struct {
 	Year          *int
 	MinRating     *float64
 	MaxRating     *float64
+	MinVotes      *int // New field
+	MaxVotes      *int // New field
 	Genres        *string
 	ExcludeGenres *string
 	SortBy        *string
@@ -79,7 +81,6 @@ type DiscoverFlags struct {
 }
 
 // createDiscoverFlagSet creates a flag set for discover commands.
-
 func createDiscoverFlagSet(name string) (*flag.FlagSet, *DiscoverFlags) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 
@@ -92,10 +93,16 @@ func createDiscoverFlagSet(name string) (*flag.FlagSet, *DiscoverFlags) {
 		Year:          fs.Int("year", 0, "Year filter"),
 		MinRating:     fs.Float64("min-rating", 0, "Minimum rating (0-10)"),
 		MaxRating:     fs.Float64("max-rating", 0, "Maximum rating (0-10)"),
+		MinVotes:      fs.Int("min-votes", 0, "Minimum vote count"), // New flag
+		MaxVotes:      fs.Int("max-votes", 0, "Maximum vote count"), // New flag
 		Genres:        fs.String("genres", "", "Include genres (comma-separated)"),
 		ExcludeGenres: fs.String("exclude", "", "Exclude genres (comma-separated)"),
-		SortBy:        fs.String("sort", "popularity", "Sort by field"),
-		SortOrder:     fs.String("order", "desc", "Sort order (asc, desc)"),
+		SortBy: fs.String(
+			"sort",
+			"popularity",
+			"Sort by field (popularity, rating, release_date, title, votes)",
+		),
+		SortOrder: fs.String("order", "desc", "Sort order (asc, desc)"),
 	}
 
 	return fs, flags
@@ -123,6 +130,8 @@ func buildSearchOptions(flags *DiscoverFlags) (internal.SearchOptions, error) {
 		Year:      *flags.Year,
 		MinRating: *flags.MinRating,
 		MaxRating: *flags.MaxRating,
+		MinVotes:  *flags.MinVotes, // New field
+		MaxVotes:  *flags.MaxVotes, // New field
 		SortBy:    *flags.SortBy,
 		SortOrder: *flags.SortOrder,
 	}

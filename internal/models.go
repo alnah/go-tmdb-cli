@@ -4,6 +4,7 @@ package internal
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -133,6 +134,8 @@ type SearchOptions struct {
 	Year          int
 	MinRating     float64
 	MaxRating     float64
+	MinVotes      int // New field for minimum votes
+	MaxVotes      int // New field for maximum votes
 	IncludeGenres []int
 	ExcludeGenres []int
 	SortBy        string
@@ -313,23 +316,93 @@ func ValidateSearchOptions(opts *SearchOptions) error {
 	if opts.Page < 1 {
 		opts.Page = 1
 	}
-	if opts.MaxItems < 1 || opts.MaxItems > OneThousand {
-		return fmt.Errorf("max-items must be between 1 and 1000, got %d", opts.MaxItems)
+
+	if err := validateMaxItems(opts.MaxItems); err != nil {
+		return err
 	}
-	if opts.MinRating < 0 || opts.MinRating > 10 {
-		return fmt.Errorf("min-rating must be between 0 and 10, got %.1f", opts.MinRating)
+
+	if err := validateRatings(opts.MinRating, opts.MaxRating); err != nil {
+		return err
 	}
-	if opts.MaxRating < 0 || opts.MaxRating > 10 {
-		return fmt.Errorf("max-rating must be between 0 and 10, got %.1f", opts.MaxRating)
+
+	if err := validateVotes(opts.MinVotes, opts.MaxVotes); err != nil {
+		return err
 	}
-	if opts.MinRating > 0 && opts.MaxRating > 0 && opts.MinRating > opts.MaxRating {
+
+	if err := validateSortBy(&opts.SortBy); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateMaxItems validates the max items parameter.
+func validateMaxItems(maxItems int) error {
+	if maxItems < 1 || maxItems > OneThousand {
+		return fmt.Errorf("max-items must be between 1 and 1000, got %d", maxItems)
+	}
+	return nil
+}
+
+// validateRatings validates rating parameters.
+func validateRatings(minRating, maxRating float64) error {
+	if minRating < 0 || minRating > 10 {
+		return fmt.Errorf("min-rating must be between 0 and 10, got %.1f", minRating)
+	}
+	if maxRating < 0 || maxRating > 10 {
+		return fmt.Errorf("max-rating must be between 0 and 10, got %.1f", maxRating)
+	}
+	if minRating > 0 && maxRating > 0 && minRating > maxRating {
 		return fmt.Errorf(
 			"min-rating (%.1f) cannot be greater than max-rating (%.1f)",
-			opts.MinRating,
-			opts.MaxRating,
+			minRating,
+			maxRating,
 		)
 	}
 	return nil
+}
+
+// validateVotes validates vote count parameters.
+func validateVotes(minVotes, maxVotes int) error {
+	if minVotes < 0 {
+		return fmt.Errorf("min-votes must be non-negative, got %d", minVotes)
+	}
+	if maxVotes < 0 {
+		return fmt.Errorf("max-votes must be non-negative, got %d", maxVotes)
+	}
+	if minVotes > 0 && maxVotes > 0 && minVotes > maxVotes {
+		return fmt.Errorf(
+			"min-votes (%d) cannot be greater than max-votes (%d)",
+			minVotes,
+			maxVotes,
+		)
+	}
+	return nil
+}
+
+// validateSortBy validates and normalizes the sort field.
+func validateSortBy(sortBy *string) error {
+	if *sortBy == "" {
+		return nil
+	}
+
+	// Handle special case: "votes" maps to "vote_count"
+	if *sortBy == "votes" {
+		*sortBy = "vote_count"
+		return nil
+	}
+
+	validSortFields := []string{
+		"popularity", "rating", "release_date", "title",
+		"vote_average", "vote_count",
+	}
+
+	if slices.Contains(validSortFields, *sortBy) {
+		return nil
+	}
+
+	return fmt.Errorf("invalid sort field '%s', must be one of: %s",
+		*sortBy, strings.Join(append(validSortFields, "votes"), ", "))
 }
 
 // DefaultConfig returns default configuration.
