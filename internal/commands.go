@@ -3,11 +3,9 @@ package internal
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -101,87 +99,6 @@ func ShowUsage(version string) {
 	fmt.Println("For more information, visit: https://github.com/alnah/tmdb-cli")
 }
 
-// CommonFlags represents common command line flags used across different commands.
-type CommonFlags struct {
-	Format        string
-	MaxItems      int
-	OriginalTitle bool
-	NoHeader      bool
-	Verbose       bool
-	Debug         bool
-}
-
-// SearchType represents the type of search (movie or TV).
-type SearchType int
-
-const (
-	// SearchTypeMovie represents movie search.
-	SearchTypeMovie SearchType = iota
-	// SearchTypeTV represents TV show search.
-	SearchTypeTV
-)
-
-// parseCommonFlags parses common command line flags from arguments.
-func parseCommonFlags(args []string) (CommonFlags, []string, error) {
-	var flags CommonFlags
-
-	fs := flag.NewFlagSet("common", flag.ContinueOnError)
-	fs.StringVar(&flags.Format, "format", FormatTable, "Output format")
-	fs.IntVar(&flags.MaxItems, "max-items", DefaultMaxItems, "Maximum items")
-	fs.BoolVar(&flags.OriginalTitle, "original-title", false, "Show original titles")
-	fs.BoolVar(&flags.NoHeader, "no-header", false, "No table headers")
-	fs.BoolVar(&flags.Verbose, "verbose", false, "Verbose logging")
-	fs.BoolVar(&flags.Debug, "debug", false, "Debug logging")
-
-	// Find where flags end and positional args begin
-	posArgs := make([]string, 0, len(args))
-	var flagArgs []string
-
-	for i, arg := range args {
-		if strings.HasPrefix(arg, "-") {
-			flagArgs = args[i:]
-			break
-		}
-		posArgs = append(posArgs, arg)
-	}
-
-	if len(flagArgs) > 0 {
-		if err := fs.Parse(flagArgs); err != nil {
-			return flags, nil, err
-		}
-	}
-
-	return flags, posArgs, nil
-}
-
-// buildFormatOptions builds format options from common flags.
-func buildFormatOptions(flags CommonFlags) FormatOptions {
-	return FormatOptions{
-		Format:           flags.Format,
-		UseOriginalTitle: flags.OriginalTitle,
-		NoHeader:         flags.NoHeader,
-		MaxWidth:         DefaultMaxWidth,
-	}
-}
-
-// parseCountArg parses count argument from positional args.
-func parseCountArg(args []string, defaultCount int) (int, error) {
-	if len(args) == 0 {
-		return defaultCount, nil
-	}
-
-	count, err := strconv.Atoi(args[0])
-	if err != nil {
-		return 0, fmt.Errorf("invalid count '%s', must be a number", args[0])
-	}
-
-	if err := validateMaxItems(count); err != nil {
-		return 0, err
-	}
-
-	return count, nil
-}
-
 // showProgress displays progress message for large requests.
 func showProgress(message string, maxItems int) {
 	if maxItems > ProgressThreshold {
@@ -202,18 +119,18 @@ func (mc *MovieCommands) HandleList(
 	listType string,
 	args []string,
 ) error {
-	flags, posArgs, err := parseCommonFlags(args)
+	flags, posArgs, err := ParseCommonFlags(args)
 	if err != nil {
 		return err
 	}
 
 	// Parse count from positional args
-	count, err := parseCountArg(posArgs, flags.MaxItems)
+	count, err := ParseCountArg(posArgs, flags.MaxItems)
 	if err != nil {
 		return err
 	}
 
-	if e := validateMaxItems(count); e != nil {
+	if e := ValidateMaxItems(count); e != nil {
 		return e
 	}
 
@@ -249,7 +166,7 @@ func (mc *MovieCommands) HandleList(
 	}
 
 	// Format and display
-	options := buildFormatOptions(flags)
+	options := BuildFormatOptions(flags)
 
 	if options.Format == FormatTable {
 		FormatSummary(os.Stdout, movies, listType, flags.OriginalTitle)
@@ -272,7 +189,7 @@ func (mc *MovieCommands) HandleAutoSearch(
 	args []string,
 ) error {
 	query := strings.Join(args, " ")
-	query = strings.Trim(query, `"'`)
+	query = CleanQuery(query)
 
 	mc.logger.Info("Auto-searching for: %s", query)
 
@@ -333,17 +250,17 @@ func (tc *TVCommands) HandleList(
 	listType string,
 	args []string,
 ) error {
-	flags, posArgs, err := parseCommonFlags(args)
+	flags, posArgs, err := ParseCommonFlags(args)
 	if err != nil {
 		return err
 	}
 
-	count, err := parseCountArg(posArgs, flags.MaxItems)
+	count, err := ParseCountArg(posArgs, flags.MaxItems)
 	if err != nil {
 		return err
 	}
 
-	if e := validateMaxItems(count); e != nil {
+	if e := ValidateMaxItems(count); e != nil {
 		return e
 	}
 
@@ -373,7 +290,7 @@ func (tc *TVCommands) HandleList(
 		return nil
 	}
 
-	options := buildFormatOptions(flags)
+	options := BuildFormatOptions(flags)
 
 	if options.Format == FormatTable {
 		FormatTVSummary(os.Stdout, tvShows, listType, flags.OriginalTitle)
@@ -398,7 +315,7 @@ func genericSearch(
 	args []string,
 	searchType SearchType,
 ) error {
-	query, maxItems, format, originalTitle, noHeader, err := parseSearchCommand(args, searchType)
+	query, maxItems, format, originalTitle, noHeader, err := ParseSearchCommand(args, searchType)
 	if err != nil {
 		return err
 	}
@@ -424,43 +341,6 @@ func genericSearch(
 		resultCount,
 		searchType,
 	)
-}
-
-// parseSearchCommand parses search command arguments and flags.
-func parseSearchCommand(
-	args []string,
-	searchType SearchType,
-) (string, int, string, bool, bool, error) {
-	if len(args) == 0 {
-		return "", 0, "", false, false, fmt.Errorf("search requires a query argument")
-	}
-
-	// Parse search arguments
-	query, flagArgs := parseSearchArgs(args)
-	if query == "" {
-		return "", 0, "", false, false, fmt.Errorf("search query cannot be empty")
-	}
-
-	// Create search flag set
-	flagSetName := CommandSearch
-	if searchType == SearchTypeTV {
-		flagSetName = "tv search"
-	}
-	fs, format, maxItems, originalTitle, noHeader := createSearchFlagSet(flagSetName)
-
-	// Parse flags
-	if err := parseSearchFlags(fs, flagArgs); err != nil {
-		return "", 0, "", false, false, err
-	}
-
-	if err := validateMaxItems(*maxItems); err != nil {
-		return "", 0, "", false, false, err
-	}
-
-	// Clean up quoted query
-	query = strings.Trim(query, `"'`)
-
-	return query, *maxItems, *format, *originalTitle, *noHeader, nil
 }
 
 // performSearch executes the search based on type and returns results.
@@ -556,43 +436,7 @@ func displaySearchResults(
 	return displayFunc(os.Stdout, options)
 }
 
-// Helper functions for search.
-func parseSearchArgs(args []string) (string, []string) {
-	var query string
-	var flagArgs []string
-
-	for i, arg := range args {
-		if strings.HasPrefix(arg, "-") {
-			flagArgs = args[i:]
-			break
-		}
-		if query == "" {
-			query = arg
-		} else {
-			query += " " + arg
-		}
-	}
-
-	return query, flagArgs
-}
-
-func parseSearchFlags(fs *flag.FlagSet, flagArgs []string) error {
-	if len(flagArgs) > 0 {
-		return fs.Parse(flagArgs)
-	}
-	return nil
-}
-
-func createSearchFlagSet(name string) (*flag.FlagSet, *string, *int, *bool, *bool) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	format := fs.String("format", FormatTable, "Output format")
-	maxItems := fs.Int("max-items", DefaultMaxItems, "Maximum items")
-	originalTitle := fs.Bool("original-title", false, "Show original titles")
-	noHeader := fs.Bool("no-header", false, "No table headers")
-
-	return fs, format, maxItems, originalTitle, noHeader
-}
-
+// showSearchHelp displays search help suggestions.
 func showSearchHelp() {
 	fmt.Println("Try:")
 	fmt.Printf("  - Check spelling and try again\n")
@@ -600,6 +444,7 @@ func showSearchHelp() {
 	fmt.Printf("  - Try the original language title\n")
 }
 
+// showTVUsage displays TV command usage information.
 func showTVUsage() {
 	fmt.Println("TV Show Commands:")
 	fmt.Println("")
