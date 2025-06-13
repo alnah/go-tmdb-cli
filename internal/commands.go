@@ -23,7 +23,6 @@ const (
 const (
 	DefaultMaxItems    = 20
 	DefaultMaxWidth    = 120
-	ProgressThreshold  = 40
 	AutoSearchMaxItems = 20
 )
 
@@ -69,43 +68,6 @@ func (cc *ConfigCommands) HandleConfig() error {
 	return nil
 }
 
-// ShowVersion displays version information.
-func ShowVersion(version, buildDate, gitCommit string) {
-	fmt.Printf("TMDB CLI %s\n", version)
-	fmt.Printf("Build Date: %s\n", buildDate)
-	fmt.Printf("Git Commit: %s\n", gitCommit)
-}
-
-// ShowUsage displays the main CLI usage information.
-func ShowUsage(version string) {
-	fmt.Printf("TMDB CLI %s\n\n", version)
-	fmt.Println("A command-line interface for The Movie Database (TMDB)")
-	fmt.Println("")
-	fmt.Println("USAGE:")
-	fmt.Println("  tmdb-cli [command] [arguments] [flags]")
-	fmt.Println("")
-	fmt.Println("COMMANDS:")
-	fmt.Println("  popular, pop              Get popular movies")
-	fmt.Println("  top-rated, top, rated     Get top-rated movies")
-	fmt.Println("  now-playing, playing      Get now playing movies")
-	fmt.Println("  upcoming                  Get upcoming movies")
-	fmt.Println("  search [query]            Search for movies")
-	fmt.Println("  discover                  Discover movies with filters")
-	fmt.Println("  tv [subcommand]           TV show commands")
-	fmt.Println("  config                    Show configuration help")
-	fmt.Println("  version, --version, -v    Show version information")
-	fmt.Println("  help, --help, -h          Show this help message")
-	fmt.Println("")
-	fmt.Println("For more information, visit: https://github.com/alnah/tmdb-cli")
-}
-
-// showProgress displays progress message for large requests.
-func showProgress(message string, maxItems int) {
-	if maxItems > ProgressThreshold {
-		fmt.Printf("%s...\n", message)
-	}
-}
-
 // LooksLikeSearch determines if input looks like a search query.
 func LooksLikeSearch(input string) bool {
 	// Contains spaces, letters, or looks like a movie/TV title
@@ -135,7 +97,7 @@ func (mc *MovieCommands) HandleList(
 	}
 
 	// Show progress for larger requests
-	showProgress(fmt.Sprintf("Fetching %d %s movies", count, listType), count)
+	ShowFetchingProgress(count, listType)
 
 	// Fetch movies based on type
 	var movies []Movie
@@ -221,7 +183,7 @@ func (tc *TVCommands) Dispatch(
 ) error {
 	if len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "TV command requires a subcommand\n\n")
-		showTVUsage()
+		ShowTVUsage()
 		return fmt.Errorf("missing TV subcommand")
 	}
 
@@ -239,7 +201,7 @@ func (tc *TVCommands) Dispatch(
 		return tc.HandleSearch(ctx, tvArgs)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown TV subcommand: %s\n\n", tvCommand)
-		showTVUsage()
+		ShowTVUsage()
 		return fmt.Errorf("unknown TV subcommand: %s", tvCommand)
 	}
 }
@@ -264,7 +226,7 @@ func (tc *TVCommands) HandleList(
 		return e
 	}
 
-	showProgress(fmt.Sprintf("Fetching %d %s TV shows", count, listType), count)
+	ShowProgress(fmt.Sprintf("Fetching %d %s TV shows", count, listType), count)
 
 	var tvShows []TVShow
 	switch listType {
@@ -353,7 +315,7 @@ func performSearch(
 	searchType SearchType,
 ) (int, func(io.Writer, FormatOptions) error, error) {
 	if searchType == SearchTypeMovie {
-		showProgress(fmt.Sprintf("Searching for \"%s\"", query), maxItems)
+		ShowSearchProgress(query, maxItems)
 
 		movies, err := client.SearchMovies(ctx, query, maxItems)
 		if err != nil {
@@ -370,7 +332,7 @@ func performSearch(
 	}
 
 	// TV search
-	showProgress(fmt.Sprintf("Searching TV shows for \"%s\"", query), maxItems)
+	ShowTVSearchProgress(query, maxItems)
 
 	tvShows, err := client.SearchTVShows(ctx, query, maxItems)
 	if err != nil {
@@ -390,11 +352,11 @@ func performSearch(
 func handleEmptySearchResults(query string, searchType SearchType) error {
 	if searchType == SearchTypeMovie {
 		fmt.Printf("No movies found for \"%s\"\n\n", query)
-		showSearchHelp()
+		ShowSearchHelp()
 		fmt.Printf("  - Include the release year\n")
 	} else {
 		fmt.Printf("No TV shows found for \"%s\"\n\n", query)
-		showSearchHelp()
+		ShowSearchHelp()
 		fmt.Printf("  - Include the first air year\n")
 	}
 	return nil
@@ -434,30 +396,4 @@ func displaySearchResults(
 	}
 
 	return displayFunc(os.Stdout, options)
-}
-
-// showSearchHelp displays search help suggestions.
-func showSearchHelp() {
-	fmt.Println("Try:")
-	fmt.Printf("  - Check spelling and try again\n")
-	fmt.Printf("  - Use fewer, more common words\n")
-	fmt.Printf("  - Try the original language title\n")
-}
-
-// showTVUsage displays TV command usage information.
-func showTVUsage() {
-	fmt.Println("TV Show Commands:")
-	fmt.Println("")
-	fmt.Println("USAGE:")
-	fmt.Println("  tmdb-cli tv [subcommand] [arguments] [flags]")
-	fmt.Println("")
-	fmt.Println("SUBCOMMANDS:")
-	fmt.Println("  popular, pop              Get popular TV shows")
-	fmt.Println("  top-rated, top, rated     Get top-rated TV shows")
-	fmt.Println("  on-the-air, air, airing   Get TV shows currently on the air")
-	fmt.Println("  search [query]            Search for TV shows")
-	fmt.Println("")
-	fmt.Println("EXAMPLES:")
-	fmt.Println("  tmdb-cli tv popular 10")
-	fmt.Println("  tmdb-cli tv search \"Breaking Bad\"")
 }
