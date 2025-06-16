@@ -64,13 +64,29 @@ func ShortenOverview(overview string, maxLength int) string {
 	if len(overview) <= maxLength {
 		return overview
 	}
-	if maxLength < 10 {
-		return overview[:maxLength] + "..."
+
+	// Handle very small maxLength cases
+	if maxLength <= 3 {
+		if maxLength <= 0 {
+			return ""
+		}
+		return overview[:maxLength]
 	}
+
+	// For maxLength < 10, truncate and trim before adding "..."
+	if maxLength < 10 {
+		truncated := overview[:maxLength-3]
+		truncated = strings.TrimSpace(truncated) // ← THIS IS THE KEY FIX!
+		return truncated + "..."
+	}
+
+	// For larger maxLength, try to break on word boundaries
 	truncated := overview[:maxLength-3]
 	if lastSpace := strings.LastIndex(truncated, " "); lastSpace > maxLength/2 {
 		truncated = truncated[:lastSpace]
 	}
+	// Remove any trailing whitespace before adding ellipsis
+	truncated = strings.TrimSpace(truncated)
 	return truncated + "..."
 }
 
@@ -84,10 +100,12 @@ func IsPopular(popularity float64, votes int) bool {
 	return popularity >= PopularityThreshold || votes >= PopularVotesThreshold
 }
 
-// IsRecent determines if a year is recent.
+// IsRecent determines if a year is recent (only considers past and current years, not future).
 func IsRecent(year int) bool {
 	currentYear := time.Now().Year()
-	return year >= currentYear-RecentYearsBack
+	// Only consider years from (current - RecentYearsBack) to current year as recent
+	// Future years are not considered recent
+	return year >= currentYear-RecentYearsBack && year <= currentYear
 }
 
 // BuildDisplayTitle creates display title with original title if different.
@@ -100,5 +118,13 @@ func BuildDisplayTitle(title, originalTitle string) string {
 
 // CleanQuery removes surrounding quotes from search queries.
 func CleanQuery(query string) string {
+	// Remove surrounding quotes only if they are balanced (both start and end)
+	if len(query) >= 2 {
+		if (query[0] == '"' && query[len(query)-1] == '"') ||
+			(query[0] == '\'' && query[len(query)-1] == '\'') {
+			return query[1 : len(query)-1]
+		}
+	}
+	// If quotes are unbalanced, remove only leading/trailing quote characters
 	return strings.Trim(query, `"'`)
 }

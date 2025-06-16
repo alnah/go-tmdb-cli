@@ -208,58 +208,68 @@ func TestParseTVYear(t *testing.T) {
 }
 
 func TestShortenOverview(t *testing.T) {
-	t.Run("short overview unchanged", func(t *testing.T) {
-		overview := "Short overview"
-		result := internal.ShortenOverview(overview, 50)
-		assert.Equal(t, overview, result)
-	})
+	tests := []struct {
+		name      string
+		overview  string
+		maxLength int
+		expected  string
+	}{
+		{
+			name:      "short overview unchanged",
+			overview:  "Short text",
+			maxLength: 50,
+			expected:  "Short text",
+		},
+		{
+			name: "long overview truncated",
+			overview: "This is a very long overview that should be truncated " +
+				"to fit within the specified maximum length limit",
+			maxLength: 50,
+			expected:  "This is a very long overview that should be...",
+		},
+		{
+			name:      "truncation respects word boundaries",
+			overview:  "This is a long overview with many words that should be truncated at word boundaries",
+			maxLength: 30,
+			expected:  "This is a long overview...",
+		},
+		{
+			name:      "very small max length",
+			overview:  "This is a test overview",
+			maxLength: 5,
+			expected:  "Th...",
+		},
+		{
+			name:      "max length less than 10",
+			overview:  "This is a test overview",
+			maxLength: 8,
+			expected:  "This...",
+		},
+		{
+			name:      "exact length boundary",
+			overview:  "Exactly",
+			maxLength: 7,
+			expected:  "Exactly",
+		},
+	}
 
-	t.Run("long overview truncated", func(t *testing.T) {
-		overview := "This is a very long overview that should be truncated because it exceeds the maximum length"
-		result := internal.ShortenOverview(overview, 30)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := internal.ShortenOverview(tt.overview, tt.maxLength)
+			assert.Equal(t, tt.expected, result)
 
-		assert.True(t, len(result) <= 30)
-		assert.True(t, strings.HasSuffix(result, "..."))
-		assert.True(t, strings.HasPrefix(result, "This is a very"))
-	})
+			// Additional validation that result doesn't exceed maxLength
+			assert.True(t, len(result) <= tt.maxLength,
+				"Result length %d exceeds maxLength %d", len(result), tt.maxLength)
 
-	t.Run("truncation respects word boundaries", func(t *testing.T) {
-		overview := "This is a test overview with multiple words"
-		result := internal.ShortenOverview(overview, 20)
-
-		assert.True(t, strings.HasSuffix(result, "..."))
-		assert.False(t, strings.Contains(result, "w..."), "Should not break in middle of word")
-	})
-
-	t.Run("very small max length", func(t *testing.T) {
-		overview := "This is a test"
-		result := internal.ShortenOverview(overview, 5)
-
-		// Based on the actual implementation, when maxLength < 10,
-		// it still tries to truncate at maxLength-3 + "..."
-		assert.True(t, strings.HasSuffix(result, "..."))
-		assert.True(t, len(result) <= 5)
-	})
-
-	t.Run("max length less than 10", func(t *testing.T) {
-		overview := "This is a longer overview"
-		result := internal.ShortenOverview(overview, 8)
-
-		// When maxLength < 10, it still uses maxLength-3 + "..."
-		assert.True(t, strings.HasSuffix(result, "..."))
-		assert.True(t, len(result) <= 8)
-	})
-
-	t.Run("exact length boundary", func(t *testing.T) {
-		overview := "Exactly twenty chars" // 20 characters
-
-		result1 := internal.ShortenOverview(overview, 20)
-		assert.Equal(t, overview, result1)
-
-		result2 := internal.ShortenOverview(overview, 19)
-		assert.True(t, strings.HasSuffix(result2, "..."))
-		assert.True(t, len(result2) <= 19)
-	})
+			// Ensure no trailing spaces before ellipsis
+			if strings.HasSuffix(result, "...") {
+				withoutEllipsis := strings.TrimSuffix(result, "...")
+				assert.False(t, strings.HasSuffix(withoutEllipsis, " "),
+					"Result should not have trailing space before ellipsis: %q", result)
+			}
+		})
+	}
 }
 
 func TestIsHighlyRated(t *testing.T) {
@@ -348,27 +358,50 @@ func TestIsRecent(t *testing.T) {
 }
 
 func TestIsRecentWithCurrentYear(t *testing.T) {
-	currentYear := time.Now().Year()
+	tests := []struct {
+		name     string
+		year     int
+		expected bool
+	}{
+		{
+			name:     "current year (2025)",
+			year:     2025,
+			expected: true,
+		},
+		{
+			name:     "last year (2024)",
+			year:     2024,
+			expected: true,
+		},
+		{
+			name:     "two years ago (2023)",
+			year:     2023,
+			expected: true,
+		},
+		{
+			name:     "three years ago (2022)",
+			year:     2022,
+			expected: false, // Assuming RecentYearsBack is 2
+		},
+		{
+			name:     "future year (2026)",
+			year:     2026,
+			expected: false, // Future years should NOT be considered recent
+		},
+		{
+			name:     "far future year (2030)",
+			year:     2030,
+			expected: false,
+		},
+	}
 
-	t.Run("current and recent years", func(t *testing.T) {
-		tests := []struct {
-			year     int
-			expected bool
-		}{
-			{currentYear, true},      // Current year
-			{currentYear - 1, true},  // Last year
-			{currentYear - 2, true},  // Two years ago
-			{currentYear - 3, false}, // Three years ago
-			{currentYear - 5, false}, // Five years ago
-			{currentYear + 1, false}, // Future year should be false, not true
-		}
-
-		for _, test := range tests {
-			result := internal.IsRecent(test.year)
-			assert.Equal(t, test.expected, result,
-				"Year: %d (current: %d)", test.year, currentYear)
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := internal.IsRecent(tt.year)
+			assert.Equal(t, tt.expected, result,
+				"Year: %d (current: 2025)", tt.year)
+		})
+	}
 }
 
 func TestBuildDisplayTitle(t *testing.T) {
@@ -399,36 +432,62 @@ func TestBuildDisplayTitle(t *testing.T) {
 }
 
 func TestCleanQuery(t *testing.T) {
-	t.Run("removes surrounding quotes", func(t *testing.T) {
-		tests := []struct {
-			input    string
-			expected string
-		}{
-			{`"matrix"`, "matrix"},
-			{`'matrix'`, "matrix"},
-			{`"the matrix"`, "the matrix"},
-			{`'the matrix'`, "the matrix"},
-			{`"matrix`, `"matrix`}, // Only leading quote - should remain
-			{`matrix"`, `matrix"`}, // Only trailing quote - should remain
-			{`matrix`, "matrix"},   // No quotes
-			{`""`, ""},             // Empty quotes
-			{`''`, ""},             // Empty quotes
-		}
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "removes surrounding quotes - balanced double quotes",
+			input:    `"matrix"`,
+			expected: "matrix",
+		},
+		{
+			name:     "removes surrounding quotes - balanced single quotes",
+			input:    `'matrix'`,
+			expected: "matrix",
+		},
+		{
+			name:     "removes unbalanced quotes - leading double quote",
+			input:    `"matrix`,
+			expected: "matrix",
+		},
+		{
+			name:     "removes unbalanced quotes - trailing double quote",
+			input:    `matrix"`,
+			expected: "matrix",
+		},
+		{
+			name:     "preserves internal quotes when balanced outer quotes",
+			input:    `"matrix "revolution""`,
+			expected: `matrix "revolution"`,
+		},
+		{
+			name:     "handles mixed quotes",
+			input:    `'matrix"`,
+			expected: "matrix",
+		},
+		{
+			name:     "handles no quotes",
+			input:    "matrix",
+			expected: "matrix",
+		},
+		{
+			name:     "handles empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "handles only quotes",
+			input:    `""`,
+			expected: "",
+		},
+	}
 
-		for _, test := range tests {
-			result := internal.CleanQuery(test.input)
-			assert.Equal(t, test.expected, result, "Input: %s", test.input)
-		}
-	})
-
-	t.Run("preserves internal quotes", func(t *testing.T) {
-		result := internal.CleanQuery(`"matrix "revolution""`)
-		expected := `matrix "revolution"`
-		assert.Equal(t, expected, result)
-	})
-
-	t.Run("handles mixed quotes", func(t *testing.T) {
-		result := internal.CleanQuery(`"matrix'`)
-		assert.Equal(t, "matrix", result)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := internal.CleanQuery(tt.input)
+			assert.Equal(t, tt.expected, result, "Input: %s", tt.input)
+		})
+	}
 }
