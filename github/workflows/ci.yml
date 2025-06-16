@@ -64,17 +64,50 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Create coverage directory
+        run: mkdir -p coverage
+
       - name: Run unit tests with coverage
         run: |
-          go test -race -covermode=atomic -coverpkg=./internal/... -coverprofile=coverage.out ./tests/unit/... 2>/dev/null || true
+          go test -v -race -coverprofile=coverage/coverage.out -coverpkg=./internal/... ./tests/unit/...
 
       - name: Run integration tests
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-        run: make test-integration
+        run: |
+          if [ -d "./tests/integration" ] && [ -n "$(find ./tests/integration -name '*.go' 2>/dev/null)" ]; then
+            if [ -n "$TMDB_API_KEY" ]; then
+              go test -v -race -coverprofile=coverage/coverage-integration.out -coverpkg=./internal/... ./tests/integration/...
+            else
+              echo "TMDB_API_KEY not set, skipping integration tests"
+            fi
+          else
+            echo "No integration tests found, skipping"
+          fi
+
+      - name: Merge coverage profiles
+        run: |
+          if ls coverage/coverage*.out >/dev/null 2>&1; then
+            echo "mode: set" > coverage/coverage-merged.out
+            for file in coverage/coverage*.out; do
+              if [ -f "$file" ] && [ -s "$file" ]; then
+                tail -n +2 "$file" >> coverage/coverage-merged.out
+              fi
+            done
+            cp coverage/coverage-merged.out coverage/coverage-clean.out
+          else
+            # If no coverage files found, create empty coverage file
+            echo "mode: set" > coverage/coverage-clean.out
+          fi
 
       - name: Generate coverage report
-        run: go tool cover -html=coverage/coverage-clean.out -o coverage/coverage-clean.html
+        run: |
+          if [ -f coverage/coverage-clean.out ]; then
+            go tool cover -html=coverage/coverage-clean.out -o coverage/coverage-clean.html
+            COVERAGE=$(go tool cover -func=coverage/coverage-clean.out | grep total: | awk '{print $3}' || echo "0.0%")
+            echo "Coverage: $COVERAGE"
+            echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
+          fi
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4

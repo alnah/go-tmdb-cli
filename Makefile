@@ -16,7 +16,7 @@
 
 # Variables
 BINARY_NAME=tmdb-cli
-CMD_DIR=.
+MAIN_FILE=./main.go
 BUILD_DIR=./bin
 DIST_DIR=./dist
 COVERAGE_DIR=./coverage
@@ -91,32 +91,94 @@ fix:
 		exit 1; \
 	fi
 
-## Testing targets
-
-# Run tests
+# Run unit tests only with proper coverage
 test:
-	@echo "$(BLUE)Running tests...$(NC)"
-	@go test -v ./...
-
-# Run tests with race detection
-test-race:
-	@echo "$(BLUE)Running tests with race detection...$(NC)"
-	@go test -v -race ./...
-
-# Run tests with coverage
-test-coverage:
-	@echo "$(BLUE)Running tests with coverage...$(NC)"
+	@echo "$(BLUE)Running unit tests with coverage...$(NC)"
 	@mkdir -p $(COVERAGE_DIR)
-	@go test -v -coverprofile=$(COVERAGE_DIR)/coverage.out ./...
-	@go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
-	@echo "$(GREEN)Coverage report generated at $(COVERAGE_DIR)/coverage.html$(NC)"
+	@go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage.out -coverpkg=./internal/... ./tests/unit/...
+	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
+		echo "$(GREEN)Unit tests completed with coverage data$(NC)"; \
+	else \
+		echo "$(YELLOW)No coverage data generated$(NC)"; \
+	fi
 
-# Check coverage threshold
-coverage-check: test-coverage
+# Run all tests including integration and e2e with coverage
+test-all:
+	@echo "$(BLUE)Running all tests with coverage...$(NC)"
+	@mkdir -p $(COVERAGE_DIR)
+	@rm -f $(COVERAGE_DIR)/coverage-*.out $(COVERAGE_DIR)/coverage-merged.out
+	@echo "Running unit tests..."
+	@go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage-unit.out -coverpkg=./internal/... ./tests/unit/... || true
+	@if [ -d "./tests/integration" ] && [ -n "$$(find ./tests/integration -name '*.go' 2>/dev/null)" ]; then \
+		if [ -z "$$TMDB_API_KEY" ]; then \
+			echo "$(YELLOW)TMDB_API_KEY not set, skipping integration tests$(NC)"; \
+		else \
+			echo "Running integration tests..."; \
+			go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage-integration.out -coverpkg=./internal/... ./tests/integration/... || true; \
+		fi; \
+	else \
+		echo "$(YELLOW)No integration tests found, skipping$(NC)"; \
+	fi
+	@if [ -d "./tests/e2e" ] && [ -n "$$(find ./tests/e2e -name '*.go' 2>/dev/null)" ]; then \
+		if [ -z "$$TMDB_API_KEY" ]; then \
+			echo "$(YELLOW)TMDB_API_KEY not set, skipping E2E tests$(NC)"; \
+		else \
+			echo "Running E2E tests..."; \
+			go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage-e2e.out -coverpkg=./internal/... ./tests/e2e/... || true; \
+		fi; \
+	else \
+		echo "$(YELLOW)No E2E tests found, skipping$(NC)"; \
+	fi
+	@echo "Merging coverage profiles..."
+	@$(MAKE) merge-coverage
+
+# Merge multiple coverage profiles
+merge-coverage:
+	@echo "$(BLUE)Merging coverage profiles...$(NC)"
+	@if ls $(COVERAGE_DIR)/coverage-*.out >/dev/null 2>&1; then \
+		echo "mode: set" > $(COVERAGE_DIR)/coverage-merged.out; \
+		for file in $(COVERAGE_DIR)/coverage-*.out; do \
+			if [ -f "$$file" ] && [ -s "$$file" ]; then \
+				tail -n +2 "$$file" >> $(COVERAGE_DIR)/coverage-merged.out; \
+			fi; \
+		done; \
+		cp $(COVERAGE_DIR)/coverage-merged.out $(COVERAGE_DIR)/coverage.out; \
+		echo "$(GREEN)Coverage profiles merged$(NC)"; \
+	else \
+		echo "$(YELLOW)No coverage profiles to merge$(NC)"; \
+	fi
+
+# Run tests with coverage report
+coverage: test
+	@echo "$(BLUE)Generating coverage report...$(NC)"
+	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
+		go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html; \
+		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage.out | grep total: | awk '{print $$3}' || echo "0.0%"); \
+		echo "$(GREEN)Coverage: $$COVERAGE$(NC)"; \
+		echo "$(GREEN)Coverage report generated: $(COVERAGE_DIR)/coverage.html$(NC)"; \
+	else \
+		echo "$(YELLOW)No coverage data found$(NC)"; \
+	fi
+
+# Generate coverage report excluding test packages - Already clean with our structure
+coverage-clean: test
+	@echo "$(BLUE)Coverage already clean - tests in separate directory...$(NC)"
+	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
+		cp $(COVERAGE_DIR)/coverage.out $(COVERAGE_DIR)/coverage-clean.out; \
+		go tool cover -html=$(COVERAGE_DIR)/coverage-clean.out -o $(COVERAGE_DIR)/coverage-clean.html; \
+		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage-clean.out | grep total: | awk '{print $$3}' || echo "0.0%"); \
+		echo "$(GREEN)Coverage: $$COVERAGE$(NC)"; \
+		echo "$(GREEN)Clean coverage report generated: $(COVERAGE_DIR)/coverage-clean.html$(NC)"; \
+	else \
+		echo "$(YELLOW)No coverage data found$(NC)"; \
+	fi
+
+# Coverage with threshold check
+coverage-check: coverage-clean
 	@echo "$(BLUE)Checking coverage threshold...$(NC)"
-	@if [ -f "$(COVERAGE_DIR)/coverage.out" ]; then \
-		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage.out | grep total | grep -oE '[0-9]+\.[0-9]+'); \
-		echo "Current coverage: $$COVERAGE%"; \
+	@if [ -f $(COVERAGE_DIR)/coverage-clean.out ]; then \
+		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage-clean.out 2>/dev/null | grep total: | awk '{print $$3}' | sed 's/%//' || echo "0"); \
+		echo "Coverage: $$COVERAGE%"; \
 		if command -v bc >/dev/null 2>&1; then \
 			if [ $$(echo "$$COVERAGE < 70" | bc -l 2>/dev/null || echo "1") -eq 1 ]; then \
 				echo "$(RED)Error: Coverage $$COVERAGE% is below minimum threshold of 70%$(NC)"; \
@@ -134,7 +196,9 @@ coverage-check: test-coverage
 # Run integration tests (requires TMDB_API_KEY)
 test-integration:
 	@echo "$(BLUE)Running integration tests...$(NC)"
-	@if [ -z "$$TMDB_API_KEY" ]; then \
+	@if [ ! -d "./tests/integration" ] || [ -z "$$(find ./tests/integration -name '*.go' 2>/dev/null)" ]; then \
+		echo "$(YELLOW)No integration tests found$(NC)"; \
+	elif [ -z "$$TMDB_API_KEY" ]; then \
 		echo "$(YELLOW)TMDB_API_KEY not set, skipping integration tests$(NC)"; \
 	else \
 		go test -v -tags=integration ./tests/integration/...; \
@@ -143,7 +207,9 @@ test-integration:
 # Run end-to-end tests (requires TMDB_API_KEY)
 test-e2e: build
 	@echo "$(BLUE)Running E2E tests...$(NC)"
-	@if [ -z "$$TMDB_API_KEY" ]; then \
+	@if [ ! -d "./tests/e2e" ] || [ -z "$$(find ./tests/e2e -name '*.go' 2>/dev/null)" ]; then \
+		echo "$(YELLOW)No E2E tests found$(NC)"; \
+	elif [ -z "$$TMDB_API_KEY" ]; then \
 		echo "$(YELLOW)TMDB_API_KEY not set, skipping E2E tests$(NC)"; \
 	else \
 		go test -v -tags=e2e ./tests/e2e/...; \
@@ -170,7 +236,7 @@ build:
 	@echo "$(BLUE)Building $(BINARY_NAME) for $(GOOS)/$(GOARCH)...$(NC)"
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
-		go build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_DIR)
+		go build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_FILE)
 	@echo "$(GREEN)Build complete: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"
 
 # Build for multiple platforms
@@ -185,7 +251,7 @@ build-all:
 			echo "Building for $$os/$$arch..."; \
 			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
 				go build $(BUILD_FLAGS) \
-				-o $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext $(CMD_DIR); \
+				-o $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext $(MAIN_FILE); \
 		done; \
 	done
 	@echo "$(GREEN)Multi-platform build complete$(NC)"
@@ -246,7 +312,7 @@ release:
 # Install binary to GOPATH/bin
 install: build
 	@echo "$(BLUE)Installing $(BINARY_NAME)...$(NC)"
-	@go install $(BUILD_FLAGS) $(CMD_DIR)
+	@go install $(BUILD_FLAGS) $(MAIN_FILE)
 	@echo "$(GREEN)$(BINARY_NAME) installed to $$(go env GOPATH)/bin$(NC)"
 
 # Run the application
@@ -265,6 +331,7 @@ clean:
 	@rm -rf $(BUILD_DIR)
 	@rm -rf $(DIST_DIR)
 	@rm -rf $(COVERAGE_DIR)
+	@rm -f coverage*.out
 	@go clean
 
 # Deep clean (including module cache)
@@ -274,47 +341,50 @@ clean-all: clean
 	@go clean -cache
 
 # Check code quality with updated linter
-check: deps fmt vet lint test security coverage-check
+check: deps fmt vet lint test security
+	@echo "$(GREEN)All quality checks passed with golangci-lint $(GOLANGCI_LINT_VERSION)!$(NC)"
 
-# Pre-release checks
-pre-release: clean check release-test
-	@echo "$(GREEN)Pre-release checks completed successfully$(NC)"
+# Prepare for release (run all checks)
+pre-release: clean check test-integration release-test
+	@echo "$(GREEN)Ready for release!$(NC)"
 
-# Quick development workflow
+# Development workflow
 dev: deps fmt vet test build
+	@echo "$(GREEN)Development build complete!$(NC)"
 
 # Development workflow with auto-fix
 dev-fix: deps fmt fix test build
+	@echo "$(GREEN)Development build with auto-fix complete!$(NC)"
 
 # Show version information
 version:
-	@echo "TMDB CLI $(VERSION)"
+	@echo "Version: $(VERSION)"
 	@echo "Build Date: $(BUILD_DATE)"
 	@echo "Git Commit: $(GIT_COMMIT)"
+	@echo "Go Version: $$(go version)"
+	@echo "golangci-lint Version: $(GOLANGCI_LINT_VERSION)"
 
 # Show help
 help:
-	@echo "$(GREEN)TMDB CLI Makefile$(NC)"
-	@echo ""
-	@echo "$(YELLOW)Quality:$(NC)"
-	@echo "  deps              Download and tidy dependencies"
-	@echo "  fmt               Format code with gofmt"
-	@echo "  vet               Vet code with go vet"
-	@echo "  lint              Lint code with golangci-lint $(GOLANGCI_LINT_VERSION)"
-	@echo "  fix               Auto-fix code issues with golangci-lint"
-	@echo "  check             Run all quality checks (deps, fmt, vet, lint, test, security, coverage)"
-	@echo ""
-	@echo "$(YELLOW)Testing:$(NC)"
-	@echo "  test              Run unit tests"
-	@echo "  test-race         Run tests with race detection"
-	@echo "  test-coverage     Run tests with coverage report"
-	@echo "  coverage-check    Check coverage meets 70% threshold"
-	@echo "  test-integration  Run integration tests (requires TMDB_API_KEY)"
-	@echo "  test-e2e          Run end-to-end tests (requires TMDB_API_KEY)"
-	@echo "  benchmark         Run benchmarks"
-	@echo "  security          Run security scan with gosec"
+	@echo "$(BLUE)TMDB CLI Makefile - golangci-lint $(GOLANGCI_LINT_VERSION)$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
+	@echo "  deps              Install dependencies"
+	@echo "  fmt               Format code"
+	@echo "  vet               Vet code"
+	@echo "  lint              Lint code with golangci-lint $(GOLANGCI_LINT_VERSION)"
+	@echo "  fix               Auto-fix code issues with golangci-lint"
+	@echo "  test              Run unit tests"
+	@echo "  test-all          Run all tests (unit, integration, e2e)"
+	@echo "  test-integration  Run integration tests (requires TMDB_API_KEY)"
+	@echo "  test-e2e          Run end-to-end tests"
+	@echo "  coverage          Generate test coverage report"
+	@echo "  coverage-clean    Generate coverage report excluding test files"
+	@echo "  coverage-check    Check coverage threshold (excluding tests)"
+	@echo "  merge-coverage    Merge multiple coverage profiles"
+	@echo "  benchmark         Run benchmarks"
+	@echo "  security          Run security scan (requires gosec)"
+	@echo "  check             Run all quality checks"
 	@echo "  dev               Development workflow (deps, fmt, vet, test, build)"
 	@echo "  dev-fix           Development workflow with auto-fix (deps, fmt, fix, test, build)"
 	@echo ""

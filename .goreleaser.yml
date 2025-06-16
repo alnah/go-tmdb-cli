@@ -31,7 +31,7 @@ git:
 builds:
   - id: tmdb-cli
     # Path to main.go file or main package
-    main: .
+    main: ./main.go
 
     # Binary name
     binary: tmdb-cli
@@ -100,7 +100,7 @@ archives:
     # Files to include in archive
     files:
       - README.md
-      - LICENSE
+      - LICENCE
       - CHANGELOG.md
       # Include shell completions if they exist
       # - completions/*
@@ -121,95 +121,216 @@ brews:
     ids:
       - default
 
-    # Git repository to push the formula to
+    # Repository to push the tap to
     repository:
       owner: alnah
-      name: homebrew-tap
-      # Optionally a branch can be provided
-      # branch: main
-
-    # Template for the url which is determined by the given Token (github or gitlab)
-    url_template: "https://github.com/alnah/tmdb-cli/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-
-    # Git author used to commit to the repository
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    # The project name and current git tag are used in the format string
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+      name: homebrew-tools
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        base: main
 
     # Folder inside the repository to put the formula
-    folder: Formula
+    directory: Formula
 
-    # Your app's homepage
+    # App description
+    description: "A command-line interface for The Movie Database (TMDB)"
     homepage: "https://github.com/alnah/tmdb-cli"
+    license: "Apache-2.0"
 
-    # Your app's description
-    description: "Command-line interface for The Movie Database (TMDB)"
+    # Dependencies
+    dependencies:
+      - name: curl
+        type: optional
 
-    # SPDX identifier of your app's license
-    license: "MIT"
-
-    # Setting this will prevent goreleaser to actually try to commit the updated
-    # formula - instead, the formula file will be stored on the dist folder only,
-    # leaving the responsibility of publishing it to the user
-    skip_upload: false
-
-    # Custom install script for brew
+    # Install instructions
     install: |
       bin.install "tmdb-cli"
+      # Install shell completions if available
+      # bash_completion.install "completions/tmdb-cli.bash" => "tmdb-cli"
+      # zsh_completion.install "completions/tmdb-cli.zsh" => "_tmdb-cli"
+      # fish_completion.install "completions/tmdb-cli.fish"
 
-    # Custom test script for brew
+    # Test command to verify installation
     test: |
-      system "#{bin}/tmdb-cli version"
+      system "#{bin}/tmdb-cli", "version"
 
-# Snapcraft packages
-# snapcrafts:
-#   - name_template: '{{ .ProjectName }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
-#     summary: Command-line interface for The Movie Database (TMDB)
-#     description: |
-#       TMDB CLI allows you to search for movies and TV shows,
-#       get popular and top-rated content, and discover new content
-#       directly from your terminal.
-#     grade: stable
-#     confinement: strict
-#     publish: true
+# Linux packages configuration
+nfpms:
+  - id: tmdb-cli-packages
+    # Package name
+    package_name: tmdb-cli
 
-# Docker images
-# dockers:
-#   - image_templates:
-#       - "alnah/tmdb-cli:latest"
-#       - "alnah/tmdb-cli:{{ .Tag }}"
-#       - "alnah/tmdb-cli:v{{ .Major }}"
-#     dockerfile: Dockerfile
-#     build_flag_templates:
-#       - "--pull"
-#       - "--label=org.opencontainers.image.created={{.Date}}"
-#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
-#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-#       - "--label=org.opencontainers.image.version={{.Version}}"
+    # Vendor
+    vendor: Alexis Nahan
+    homepage: https://github.com/alnah/tmdb-cli
+    maintainer: Alexis Nahan <alexis.nahan@gmail.com>
+    description: |-
+      A command-line interface for The Movie Database (TMDB).
+      Search movies, get popular/top-rated lists, and discover films
+      with various filters directly from your terminal.
+    license: Apache-2.0
+    # Formats to generate
+    formats:
+      - apk
+      - deb
+      - rpm
+      - archlinux
 
-# Linux packages
-# nfpms:
-#   - id: packages
-#     package_name: tmdb-cli
-#     file_name_template: '{{ .ConventionalFileName }}'
-#     vendor: TMDB CLI
-#     homepage: https://github.com/alnah/tmdb-cli
-#     maintainer: Your Name <your.email@example.com>
-#     description: |-
-#       Command-line interface for The Movie Database (TMDB).
-#       Search for movies and TV shows, get popular content, and discover new releases.
-#     license: MIT
-#     formats:
-#       - apk
-#       - deb
-#       - rpm
-#       - termux.deb # Termux
-#       - archlinux # Since: v1.13
+    # Package dependencies
+    dependencies:
+      - curl
+    recommends:
+      - ca-certificates
 
-# The lines beneath this are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+    # Binary location
+    bindir: /usr/bin
+
+    # Files to include
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/tmdb-cli/README.md
+        file_info:
+          mode: 0644
+      - src: ./LICENCE
+        dst: /usr/share/doc/tmdb-cli/LICENCE
+        file_info:
+          mode: 0644
+
+# Snapcraft configuration
+snapcrafts:
+  - name: tmdb-cli
+    summary: Command-line interface for The Movie Database
+    description: |
+      A powerful CLI tool for interacting with The Movie Database (TMDB).
+      Search for movies, get popular and top-rated lists, discover films
+      with advanced filters, and format output as JSON, CSV, or tables.
+
+    grade: stable
+    confinement: strict
+
+    # Plugs for network access
+    plugs:
+      network:
+      network-bind:
+
+    # Apps configuration
+    apps:
+      tmdb-cli:
+        command: tmdb-cli
+        plugs: ["network"]
+
+# Checksums
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# Snapshot builds (for development)
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+# Changelog configuration
+changelog:
+  # Set this to true if you don't want any changelog at all
+  disable: false
+
+  # Changelog generation implementation
+  use: github
+
+  # Sorts the changelog by the commit's messages
+  sort: asc
+
+  # Group commits by type
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: "Bug fixes"
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: "Performance improvements"
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: "Refactors"
+      regexp: '^.*?refactor(\(.+\))??!?:.+$'
+      order: 3
+    - title: "Documentation updates"
+      regexp: '^.*?docs(\(.+\))??!?:.+$'
+      order: 4
+    - title: Others
+      order: 999
+
+  # Filter out commits
+  filters:
+    exclude:
+      - "^style:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^build:"
+      - "^Merge branch"
+      - "^Merge pull request"
+
+# Release configuration
+release:
+  # Repository to push the release to
+  github:
+    owner: alnah
+    name: tmdb-cli
+
+  # If set to true, will not auto-publish the release
+  draft: false
+
+  # Whether to remove existing draft releases with the same name before creating a new one
+  replace_existing_draft: true
+
+  # Release name template
+  name_template: "v{{.Version}}"
+
+  # What to do with the release notes in case there the release already exists
+  mode: replace
+
+  # Header for the release body
+  header: |
+    ## TMDB CLI {{ .Version }}
+
+    This release includes binaries for Linux, macOS, Windows, and FreeBSD.
+
+    ### Installation
+
+    **Homebrew (macOS/Linux):**
+    ```bash
+    brew tap alnah/tools
+    brew install tmdb-cli
+    ```
+
+    **Manual Installation:**
+    Download the appropriate binary for your platform from the assets below.
+
+  # Footer for the release body
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/alnah/tmdb-cli/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    For more information, visit: https://github.com/alnah/tmdb-cli
+
+# Announce configuration (optional)
+# announce:
+#   slack:
+#     enabled: true
+#     message_template: 'TMDB CLI {{ .Tag }} is out! Check it out: {{ .ReleaseURL }}'
+#     channel: '#releases'
+#
+#   twitter:
+#     enabled: true
+#     message_template: "TMDB CLI {{ .Tag }} is out! 🎬 CLI tool for @themoviedb 🚀 {{ .ReleaseURL }}"
+
+# Go modules proxy
+gomod:
+  proxy: true
+
+# Metadata
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"

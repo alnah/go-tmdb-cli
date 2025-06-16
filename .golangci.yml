@@ -168,9 +168,9 @@ linters-settings:
     min: 3
     max: 3
 
-  # Duplication detection - More practical threshold
+  # Duplication detection
   dupl:
-    threshold: 250
+    threshold: 100
 
   # Maintainability index
   maintidx:
@@ -343,17 +343,14 @@ issues:
       linters:
         - funlen # Main functions can be longer in CLI apps
         - mnd # Magic numbers are acceptable in CLI main
+        - gochecknoinits # Init functions might be needed in CLI main
 
-    # CLI apps often have longer functions in cmd/
-    - path: cmd/
+    # CLI apps often have longer functions in main
+    - path: main\.go
       linters:
         - funlen
         - mnd
-
-    # CLI apps often have similar command handling patterns
-    - path: internal/commands\.go
-      linters:
-        - dupl # Command handlers often have similar structure
+        - gocognit
 
     # Test files don't need error wrapping or magic number checks
     - path: _test\.go
@@ -366,7 +363,7 @@ issues:
         - mnd
 
     # Exclude errcheck for intentionally ignored errors in formatters
-    - path: internal/formatters\.go
+    - path: internal/formatters.*\.go
       linters:
         - errcheck
       text: "Error return value of `fmt\\.(Fprint|Fprintf|Fprintln)` is not checked"
@@ -380,6 +377,13 @@ issues:
     - linters:
         - errcheck
       text: "Error return value of.*Write.*is not checked"
+
+    # Allow longer functions in CLI dispatcher and commands
+    - path: internal/cli_(dispatcher|commands)\.go
+      linters:
+        - funlen
+        - gocyclo
+        - gocognit
 
   # Exclude default patterns
   exclude-use-default: false
