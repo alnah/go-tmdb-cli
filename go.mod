@@ -3,8 +3,8 @@ module github.com/alnah/tmdb-cli
 go 1.23.5
 
 require (
-	github.com/jedib0t/go-pretty/v6 v6.6.5
-	github.com/stretchr/testify v1.8.4
+	github.com/jedib0t/go-pretty/v6 v6.6.7
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/time v0.5.0
 	gopkg.in/yaml.v3 v3.0.1
 )

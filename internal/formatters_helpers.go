@@ -9,8 +9,39 @@ import (
 
 // formatTitle formats a title with original title handling.
 func formatTitle(title, originalTitle string, useOriginal bool) string {
+	// Handle edge cases first
+	if title == "" && originalTitle != "" {
+		return handleEmptyTitle(originalTitle, useOriginal)
+	}
+
+	if title != "" && originalTitle == "" {
+		return title
+	}
+
+	if title == "" && originalTitle == "" {
+		return ""
+	}
+
+	// Handle normal cases
+	if originalTitle == title {
+		return title
+	}
+
+	return formatTitleWithBoth(title, originalTitle, useOriginal)
+}
+
+// handleEmptyTitle handles the case where title is empty but original exists.
+func handleEmptyTitle(originalTitle string, useOriginal bool) string {
+	if useOriginal {
+		return originalTitle
+	}
+	return "" // Return empty title as expected by tests
+}
+
+// formatTitleWithBoth formats title when both title and originalTitle exist and are different.
+func formatTitleWithBoth(title, originalTitle string, useOriginal bool) string {
 	var displayTitle string
-	if useOriginal && originalTitle != "" && originalTitle != title {
+	if useOriginal {
 		displayTitle = originalTitle
 		// Add English title/name in parentheses if space allows
 		fullTitle := displayTitle + " (" + title + ")"
@@ -20,11 +51,9 @@ func formatTitle(title, originalTitle string, useOriginal bool) string {
 	} else {
 		displayTitle = title
 		// Add original title/name in parentheses if different and space allows
-		if originalTitle != "" && originalTitle != title {
-			fullTitle := displayTitle + " (" + originalTitle + ")"
-			if len(fullTitle) <= TitleColumnWidth {
-				displayTitle = fullTitle
-			}
+		fullTitle := displayTitle + " (" + originalTitle + ")"
+		if len(fullTitle) <= TitleColumnWidth {
+			displayTitle = fullTitle
 		}
 	}
 

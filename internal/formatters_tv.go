@@ -24,12 +24,13 @@ func (tvf TVShowFormatter) GetOriginalTitle() string {
 }
 
 // GetFields returns CSV fields for a TV show.
+// For CSV output, we keep year as "0" for consistency with tests that expect specific numeric values.
 func (tvf TVShowFormatter) GetFields() []string {
 	return []string{
 		strconv.Itoa(tvf.TVShow.ID),
 		tvf.TVShow.Name,
 		tvf.TVShow.OriginalName,
-		strconv.Itoa(tvf.TVShow.Year),
+		strconv.Itoa(tvf.TVShow.Year), // Use raw year for CSV (tests expect "0" not "N/A")
 		fmt.Sprintf("%.1f", tvf.TVShow.Rating),
 		strconv.Itoa(tvf.TVShow.Votes),
 		fmt.Sprintf("%.2f", tvf.TVShow.Popularity),

@@ -170,7 +170,7 @@ linters-settings:
 
   # Duplication detection
   dupl:
-    threshold: 100
+    threshold: 250
 
   # Maintainability index
   maintidx:

@@ -24,12 +24,13 @@ func (mf MovieFormatter) GetOriginalTitle() string {
 }
 
 // GetFields returns CSV fields for a movie.
+// For CSV output, we keep year as "0" for consistency with tests that expect specific numeric values.
 func (mf MovieFormatter) GetFields() []string {
 	return []string{
 		strconv.Itoa(mf.Movie.ID),
 		mf.Movie.Title,
 		mf.Movie.OriginalTitle,
-		strconv.Itoa(mf.Movie.Year),
+		strconv.Itoa(mf.Movie.Year), // Use raw year for CSV (tests expect "0" not "N/A")
 		fmt.Sprintf("%.1f", mf.Movie.Rating),
 		strconv.Itoa(mf.Movie.Votes),
 		fmt.Sprintf("%.2f", mf.Movie.Popularity),
