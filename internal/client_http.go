@@ -106,7 +106,8 @@ func (c *Client) makeHTTPRequest(
 					err,
 				)
 			}
-			time.Sleep(time.Duration(attempt+1) * time.Second)
+			// Use clock for retry delay
+			c.clock.Sleep(time.Duration(attempt+1) * time.Second)
 			continue
 		}
 		break

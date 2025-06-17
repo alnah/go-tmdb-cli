@@ -11,6 +11,8 @@ import (
 	"github.com/alnah/tmdb-cli/tests/helpers"
 )
 
+const testKey = "test-key"
+
 func TestClient_CacheExpiry(t *testing.T) {
 	t.Run("cache returns data before expiry", func(t *testing.T) {
 		// Setup mock clock
@@ -25,7 +27,6 @@ func TestClient_CacheExpiry(t *testing.T) {
 		client := internal.NewTestClient(config, nil, mockClock)
 
 		// Put item in cache
-		testKey := "test-key"
 		testData := []byte("test-data")
 		client.PutInCache(testKey, testData)
 
@@ -54,7 +55,6 @@ func TestClient_CacheExpiry(t *testing.T) {
 		client := internal.NewTestClient(config, nil, mockClock)
 
 		// Put item in cache
-		testKey := "test-key"
 		testData := []byte("test-data")
 		client.PutInCache(testKey, testData)
 
