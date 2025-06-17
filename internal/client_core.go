@@ -26,6 +26,7 @@ type Client struct {
 	httpClient  *http.Client
 	config      Config
 	rateLimiter *rate.Limiter
+	clock       Clock // Add clock interface
 
 	// Simple in-memory cache
 	cache   map[string]cachedItem
@@ -47,6 +48,11 @@ type cachedItem struct {
 
 // NewClient creates a new TMDB client.
 func NewClient(config Config) *Client {
+	return NewClientWithClock(config, RealClock{})
+}
+
+// NewClientWithClock creates a new TMDB client with a custom clock.
+func NewClientWithClock(config Config, clock Clock) *Client {
 	// Configure HTTP client with reasonable timeouts
 	httpClient := &http.Client{
 		Timeout: config.Timeout,
@@ -58,12 +64,13 @@ func NewClient(config Config) *Client {
 	}
 
 	// Rate limiter: TMDB allows 40 requests per 10 seconds, be conservative
-	rateLimiter := rate.NewLimiter(RateLimitPerSec, RateLimitBurst) // 3.5 req/sec with burst of 10
+	rateLimiter := rate.NewLimiter(RateLimitPerSec, RateLimitBurst)
 
 	client := &Client{
 		httpClient:  httpClient,
 		config:      config,
 		rateLimiter: rateLimiter,
+		clock:       clock,
 		cache:       make(map[string]cachedItem),
 		genres:      make(map[int]string),
 		tvGenres:    make(map[int]string),

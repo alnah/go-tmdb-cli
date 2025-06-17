@@ -1,9 +1,11 @@
+// Package internal provides core data structures and utilities for the TMDB CLI application.
 package internal
 
 import (
 	"context"
 	"net/http"
 	"net/url"
+	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -47,6 +49,11 @@ func (c *Client) GetHTTPClient() *http.Client {
 // GetConfig returns the client configuration for testing.
 func (c *Client) GetConfig() Config {
 	return c.config
+}
+
+// GetClock returns the client's clock for testing.
+func (c *Client) GetClock() Clock {
+	return c.clock
 }
 
 // SetMovieGenre sets a movie genre for testing.
@@ -164,6 +171,39 @@ func NewClientWithHTTPClient(config Config, httpClient *http.Client) *Client {
 		httpClient:  httpClient,
 		config:      config,
 		rateLimiter: rateLimiter,
+		clock:       RealClock{}, // Use RealClock by default
+		cache:       make(map[string]cachedItem),
+		genres:      make(map[int]string),
+		tvGenres:    make(map[int]string),
+	}
+
+	return client
+}
+
+// NewTestClient creates a client configured for testing.
+func NewTestClient(config Config, httpClient *http.Client, clock Clock) *Client {
+	if clock == nil {
+		clock = RealClock{}
+	}
+
+	if httpClient == nil {
+		httpClient = &http.Client{
+			Timeout: config.Timeout,
+			Transport: &http.Transport{
+				MaxIdleConns:       10,
+				IdleConnTimeout:    IdleConnTimeoutSec * time.Second,
+				DisableCompression: false,
+			},
+		}
+	}
+
+	rateLimiter := rate.NewLimiter(RateLimitPerSec, RateLimitBurst)
+
+	client := &Client{
+		httpClient:  httpClient,
+		config:      config,
+		rateLimiter: rateLimiter,
+		clock:       clock,
 		cache:       make(map[string]cachedItem),
 		genres:      make(map[int]string),
 		tvGenres:    make(map[int]string),
