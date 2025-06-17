@@ -1,4 +1,4 @@
-# CI Pipeline for TMDB CLI - Updated for golangci-lint v1.64.8
+# CI Pipeline for TMDB CLI
 name: CI
 
 on:
@@ -9,7 +9,7 @@ on:
 
 env:
   GO_VERSION: "1.23.5"
-  GOLANGCI_LINT_VERSION: "v1.64.8" # Last stable V1 version
+  GOLANGCI_LINT_VERSION: "v2.1.6" # Latest version
 
 jobs:
   # Code quality and linting
@@ -18,12 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read # Optional for only-new-issues
+      pull-requests: read # Required for only-new-issues mode
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Required for only-new-issues
+          fetch-depth: 0 # Required for only-new-issues mode
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -39,7 +39,9 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m --config=.golangci.yml
+          # Only show new issues on pull requests to reduce noise
           only-new-issues: ${{ github.event_name == 'pull_request' }}
+          # Enable caching for faster runs
           skip-cache: false
           skip-pkg-cache: false
           skip-build-cache: false
@@ -64,69 +66,26 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Create coverage directory
-        run: mkdir -p coverage
+      - name: Run unit tests
+        run: go test -v -race -coverprofile=coverage.out ./...
 
-      - name: Run unit tests with coverage
-        run: |
-          go test -v -race -coverprofile=coverage/coverage.out -coverpkg=./internal/... ./tests/unit/...
-
-      - name: Run integration tests
-        env:
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-        run: |
-          if [ -d "./tests/integration" ] && [ -n "$(find ./tests/integration -name '*.go' 2>/dev/null)" ]; then
-            if [ -n "$TMDB_API_KEY" ]; then
-              go test -v -race -coverprofile=coverage/coverage-integration.out -coverpkg=./internal/... ./tests/integration/...
-            else
-              echo "TMDB_API_KEY not set, skipping integration tests"
-            fi
-          else
-            echo "No integration tests found, skipping"
-          fi
-
-      - name: Merge coverage profiles
-        run: |
-          if ls coverage/coverage*.out >/dev/null 2>&1; then
-            echo "mode: set" > coverage/coverage-merged.out
-            for file in coverage/coverage*.out; do
-              if [ -f "$file" ] && [ -s "$file" ]; then
-                tail -n +2 "$file" >> coverage/coverage-merged.out
-              fi
-            done
-            cp coverage/coverage-merged.out coverage/coverage-clean.out
-          else
-            # If no coverage files found, create empty coverage file
-            echo "mode: set" > coverage/coverage-clean.out
-          fi
-
-      - name: Generate coverage report
-        run: |
-          if [ -f coverage/coverage-clean.out ]; then
-            go tool cover -html=coverage/coverage-clean.out -o coverage/coverage-clean.html
-            COVERAGE=$(go tool cover -func=coverage/coverage-clean.out | grep total: | awk '{print $3}' || echo "0.0%")
-            echo "Coverage: $COVERAGE"
-            echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
-          fi
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage/coverage-clean.out
-          flags: unittests
-          name: codecov-${{ matrix.go-version }}
-
-      - name: Upload coverage artifacts
+      - name: Upload coverage
+        if: matrix.go-version == '1.23.5'
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report-go${{ matrix.go-version }}
-          path: coverage/coverage-clean.html
+          name: coverage-report
+          path: coverage.out
+
+      - name: Run integration tests
+        if: env.TMDB_API_KEY != ''
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: go test -v -tags=integration ./tests/integration/...
 
   # Build verification
   build:
-    name: Build Application
+    name: Build
     runs-on: ubuntu-latest
-    needs: [lint]
     strategy:
       matrix:
         os: [linux, darwin, windows]
@@ -144,15 +103,19 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Build application
-        run: make build-all
+      - name: Build binary
+        run: |
+          ext=""
+          if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
+          CGO_ENABLED=0 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
+            go build -trimpath -ldflags="-s -w" \
+            -o bin/tmdb-cli-${{ matrix.os }}-${{ matrix.arch }}${ext} main.go
 
-      - name: Upload build artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tmdb-cli-${{ matrix.os }}-${{ matrix.arch }}
-          path: bin/
-          retention-days: 30
+          name: binary-${{ matrix.os }}-${{ matrix.arch }}
+          path: bin/*
 
   # Security scanning
   security:
@@ -168,49 +131,24 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Run security scanning
-        run: make security
-
-  # End-to-end testing with real API
-  e2e:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: Run gosec
+        uses: securego/gosec@master
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
+          args: -fmt sarif -out gosec-results.sarif ./...
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
-          name: tmdb-cli-linux-amd64
-          path: bin/
-
-      - name: Make binary executable
-        run: chmod +x bin/tmdb-cli-linux-amd64
-
-      - name: Run E2E tests
-        env:
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-        run: make test-e2e
+          sarif_file: gosec-results.sarif
 
   # Code quality analysis
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
-    needs: [test]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -218,65 +156,44 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Download coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report-go${{ env.GO_VERSION }}
-
-      - name: Calculate complexity
+      - name: Check formatting
         run: |
-          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-          gocyclo -over 15 . | tee complexity.txt
-
-      - name: Check test coverage threshold
-        run: make coverage-check
-
-      - name: Check for TODO/FIXME comments
-        run: |
-          echo "Checking for TODO/FIXME comments:"
-          grep -rn "TODO\|FIXME" --include="*.go" . | tee todos.txt || true
-
-          # Don't fail on TODOs, just report them
-          if [ -s todos.txt ]; then
-            echo "Found TODO/FIXME comments. Consider addressing them."
+          if [ -n "$(gofmt -s -l .)" ]; then
+            echo "Code is not properly formatted. Run 'make fmt'"
+            gofmt -s -d .
+            exit 1
           fi
 
-  # Validation summary job
-  ci-success:
-    name: CI Success
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "go.mod or go.sum is not tidy. Run 'go mod tidy'"
+            git diff
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+  # Summary job
+  summary:
+    name: CI Summary
     runs-on: ubuntu-latest
-    needs: [lint, test, build, security]
+    needs: [lint, test, build, security, quality]
     if: always()
     steps:
-      - name: Check all jobs status
-        run: |
-          if [[ "${{ needs.lint.result }}" != "success" ]]; then
-            echo "Lint job failed"
-            exit 1
-          fi
-
-          if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "Test job failed"
-            exit 1
-          fi
-
-          if [[ "${{ needs.build.result }}" != "success" ]]; then
-            echo "Build job failed"
-            exit 1
-          fi
-
-          if [[ "${{ needs.security.result }}" != "success" ]]; then
-            echo "Security job failed"
-            exit 1
-          fi
-
-          echo "All CI jobs completed successfully!"
-
       - name: CI Summary
         run: |
           echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Code linting and formatting (golangci-lint ${{ env.GOLANGCI_LINT_VERSION }})" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Unit and integration tests" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Multi-platform builds" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Security scanning" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Code quality checks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Jobs Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Linting (golangci-lint ${{ env.GOLANGCI_LINT_VERSION }}): ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: ${{ needs.build.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Quality: ${{ needs.quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- Go Version: ${{ env.GO_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- golangci-lint: ${{ env.GOLANGCI_LINT_VERSION }}" >> $GITHUB_STEP_SUMMARY

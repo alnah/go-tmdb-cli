@@ -10,6 +10,7 @@ import (
 // LogLevel represents the logging level for the application.
 type LogLevel int
 
+// Available log levels.
 const (
 	DebugLevel LogLevel = iota
 	InfoLevel

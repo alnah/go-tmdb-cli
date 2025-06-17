@@ -1,5 +1,8 @@
-# golangci-lint configuration for TMDB CLI - v1.64.8 compatible
-# This configuration is specifically designed for golangci-lint v1.64.8 (last stable V1)
+# golangci-lint v2 configuration for TMDB CLI
+# ============================================
+# This configuration is designed for golangci-lint v2.1.6
+
+version: 2
 
 run:
   timeout: 5m
@@ -7,245 +10,39 @@ run:
   tests: true
   go: "1.23.5"
 
-# Output configuration - Updated to use new format
+# Output configuration
 output:
-  formats:
-    - format: colored-line-number
-      path: stdout
+  format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
   sort-results: true
 
-# Linters settings
-linters-settings:
-  # Error handling - More practical for CLI apps
-  errcheck:
-    check-type-assertions: true
-    check-blank: false # Don't require checking blank assignments
-    exclude-functions:
-      # Standard library cleanup functions
-      - (*os.File).Close
-      - (*sql.Rows).Close
-      - (*sql.Stmt).Close
-      - (*http.Response.Body).Close
-      # Logging and output functions where errors are often not critical
-      - (io.Writer).Write
-      - fmt.Fprint
-      - fmt.Fprintf
-      - fmt.Fprintln
-      - fmt.Print
-      - fmt.Printf
-      - fmt.Println
-      # JSON encoding for CLI output
-      - (*encoding/json.Encoder).Encode
-
-  # Code complexity
-  gocyclo:
-    min-complexity: 15
-
-  # Cognitive complexity
-  gocognit:
-    min-complexity: 20
-
-  # Function length
-  funlen:
-    lines: 80
-    statements: 50
-
-  # Line length
-  lll:
-    line-length: 120
-    tab-width: 4
-
-  # Naming conventions
-  stylecheck:
-    checks: ["all"]
-    initialisms:
-      [
-        "ACL",
-        "API",
-        "ASCII",
-        "CPU",
-        "CSS",
-        "DNS",
-        "EOF",
-        "GUID",
-        "HTML",
-        "HTTP",
-        "HTTPS",
-        "ID",
-        "IP",
-        "JSON",
-        "QPS",
-        "RAM",
-        "RPC",
-        "SLA",
-        "SMTP",
-        "SQL",
-        "SSH",
-        "TCP",
-        "TLS",
-        "TTL",
-        "UDP",
-        "UI",
-        "GID",
-        "UID",
-        "UUID",
-        "URI",
-        "URL",
-        "UTF8",
-        "VM",
-        "XML",
-        "XMPP",
-        "XSRF",
-        "XSS",
-        "TMDB",
-        "CLI",
-      ]
-
-  # Variable naming
-  varnamelen:
-    min-name-length: 2
-    ignore-names:
-      - err
-      - i
-      - j
-      - k
-      - v
-      - id
-      - w
-      - r
-      - t
-      - b
-      - q
-      - fs
-    ignore-decls:
-      - c echo.Context
-      - t testing.T
-      - e error
-      - i int
-      - j int
-
-  # Import ordering
-  goimports:
-    local-prefixes: github.com/alnah/tmdb-cli
-
-  # Govet configuration
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment # Can be noisy for CLI apps
-      - shadow # Can be overly strict
-
-  # Gosec security rules
-  gosec:
-    excludes:
-      - G204 # Subprocess with variable arguments - common in CLI apps
-      - G304 # File path provided as taint input - CLI file operations
-    config:
-      G301: "0644"
-      G302: "0644"
-      G306: "0644"
-
-  # Misspell checker
-  misspell:
-    locale: US
-    ignore-words:
-      - colour
-
-  # Whitespace
-  whitespace:
-    multi-if: false
-    multi-func: false
-
-  # Goconst settings
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-    ignore-tests: true
-    match-constant: true
-    numbers: true
-    min: 3
-    max: 3
-
-  # Duplication detection
-  dupl:
-    threshold: 250
-
-  # Maintainability index
-  maintidx:
-    under: 20
-
-  # Error wrapping (Go 1.13+)
-  errorlint:
-    errorf: true
-    asserts: true
-    comparison: true
-
-  # Unused code detection - v1 compatible
-  unused:
-    check-exported: false
-
-  # Performance checks
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: false
-
-  # Magic numbers detection (replacement for deprecated gomnd)
-  mnd:
-    checks:
-      - argument
-      - case
-      - condition
-      - operation
-      - return
-      - assign
-    ignored-numbers:
-      - "0"
-      - "1"
-      - "2"
-      - "3"
-      - "10"
-      - "100"
-      - "1000"
-    ignored-functions:
-      - "args.Error"
-      - "strconv.*"
-      - "os.Exit"
-
-# Linters configuration
+# Linters configuration - v2 format
 linters:
+  # Set default linter set (standard/all/none/fast)
+  default: standard
+
+  # Enable additional linters
   enable:
     # Error handling and reliability
-    - errcheck
     - errorlint
     - bodyclose
+    - nilerr
 
     # Code quality and complexity
     - gocyclo
     - gocognit
-    - funlen
     - gochecknoinits
     - goconst
-    - dupl
     - maintidx
 
     # Style and formatting
-    - gofmt
-    - gofumpt
-    - goimports
-    - stylecheck
+    - revive # Replacement for stylecheck
     - varnamelen
     - whitespace
     - lll
-
-    # Bug detection and static analysis
-    - govet
-    - staticcheck
-    - ineffassign
-    - typecheck
-    - unused
+    - godot
+    - nlreturn
 
     # Security
     - gosec
@@ -260,140 +57,342 @@ linters:
     - thelper
     - tparallel
     - unparam
+    - exhaustive
 
-    # Magic numbers (replacement for deprecated gomnd)
+    # Magic numbers
     - mnd
 
-    # Documentation and comments
-    - godot
+    # Documentation
     - godox
 
+  # Disable specific linters
   disable:
     # Too opinionated for CLI apps
-    - wsl # Too opinionated about whitespace
-    - nlreturn # Too strict about newlines
-    - forcetypeassert # CLI apps often need type assertions
-    - cyclop # Redundant with gocyclo
-    - exhaustive # Can be too strict for CLI apps
-    - tagliatelle # Can be too strict for CLI apps
+    - wsl
+    - nlreturn
+    - forcetypeassert
+    - cyclop
+    - exhaustive
+    - tagliatelle
+    - funlen
+    - exhaustruct
 
-# Issues configuration
+  # Linter-specific settings
+  settings:
+    # Error handling
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+      exclude-functions:
+        - (*os.File).Close
+        - (*sql.Rows).Close
+        - (*sql.Stmt).Close
+        - (*http.Response.Body).Close
+        - (io.Writer).Write
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
+        - (*encoding/json.Encoder).Encode
+
+    # Code complexity
+    gocyclo:
+      min-complexity: 15
+
+    gocognit:
+      min-complexity: 20
+
+    # Line length
+    lll:
+      line-length: 120
+      tab-width: 4
+
+    # Naming conventions - using revive instead of stylecheck
+    revive:
+      enable-all-rules: false
+      rules:
+        - name: var-naming
+          arguments:
+            - [
+                "ID",
+                "HTTP",
+                "HTTPS",
+                "URL",
+                "URI",
+                "JSON",
+                "API",
+                "UUID",
+                "SQL",
+                "CSS",
+                "DNS",
+                "EOF",
+                "HTML",
+                "TMDB",
+                "CLI",
+              ]
+        - name: exported
+        - name: unexported-return
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+    # Variable naming
+    varnamelen:
+      min-name-length: 2
+      ignore-names:
+        - err
+        - i
+        - j
+        - k
+        - v
+        - id
+        - ok
+        - w
+        - r
+        - t
+        - b
+        - q
+        - fs
+      ignore-decls:
+        - c echo.Context
+        - t testing.T
+        - e error
+        - i int
+        - j int
+
+    # Import ordering
+    goimports:
+      local-prefixes: github.com/alnah/tmdb-cli
+
+    # Govet configuration
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+
+    # Security rules
+    gosec:
+      excludes:
+        - G204 # Subprocess with variable - common in CLI
+        - G304 # File path provided as taint input
+      config:
+        G301: "0644"
+        G302: "0644"
+        G306: "0644"
+
+    # Misspell checker
+    misspell:
+      locale: US
+      ignore-words:
+        - colour
+
+    # Whitespace
+    whitespace:
+      multi-if: false
+      multi-func: false
+
+    # Goconst settings
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      ignore-tests: true
+      match-constant: true
+      numbers: true
+      min: 3
+      max: 3
+
+    # Maintainability index
+    maintidx:
+      under: 20
+
+    # Error wrapping
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+    # Unused code detection
+    unused:
+      check-exported: false
+
+    # Performance checks
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+
+    # Magic numbers detection
+    mnd:
+      # Disable all checks for test files (configured in issues section)
+      checks:
+        - argument
+        - case
+        - condition
+        - operation
+        - return
+        - assign
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+        - "3"
+        - "10"
+        - "100"
+        - "1000"
+      ignored-files:
+        - "_test\\.go$"
+        - "tests/"
+      ignored-functions:
+        - "args.Error"
+        - "strconv.*"
+        - "os.Exit"
+        - "testing.*"
+
+# Issues configuration - v2 format
 issues:
-  # Directories and files to exclude
-  exclude-dirs:
-    - vendor
-    - dist
-    - bin
-    - coverage
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*_mock\\.go$"
+  # Paths configuration - v2 format
+  paths:
+    # Directories and files to exclude
+    exclude-dirs:
+      - vendor
+      - dist
+      - bin
+      - coverage
+    exclude-files:
+      - ".*\\.pb\\.go$"
+      - ".*_mock\\.go$"
 
   # Make issues output unique by line
   uniq-by-line: true
 
-  # Exclude rules for different file types
-  exclude-rules:
-    # Exclude some linters from running on test files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - funlen
-        - dupl
-        - gosec
-        - goconst
-        - maintidx
-        - errcheck
-        - mnd
+  # Exclusion presets - v2 feature
+  exclusions:
+    # Enable human-readable exclusion presets
+    presets:
+      - comments # Exclude issues about comments
+      - std-error-handling # Standard error handling patterns
+      - common-false-positives # Common false positives
 
-    # Exclude some linters from test helper files
-    - path: tests/helpers/
-      linters:
-        - funlen
-        - gocyclo
-        - dupl
-        - mnd
+    # Custom exclusion rules
+    rules:
+      # Exclude magic numbers from entire tests directory
+      - path: tests
+        linters:
+          - mnd
 
-    # Exclude some linters from fixtures
-    - path: tests/fixtures/
-      linters:
-        - funlen
-        - goconst
-        - dupl
-        - varnamelen
-        - mnd
+      # Exclude some linters from running on test files
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - dupl
+          - gosec
+          - goconst
+          - maintidx
+          - errcheck
+          - mnd
 
-    # Exclude line length for long test names
-    - linters:
-        - lll
-      source: "^func Test"
+      # Exclude some linters from test helper files
+      - path: tests/helpers
+        linters:
+          - gocyclo
+          - dupl
+          - mnd
 
-    # Allow long lines in comments for URLs or examples
-    - linters:
-        - lll
-      source: "// http"
+      # Exclude some linters from fixtures
+      - path: tests/fixtures
+        linters:
+          - goconst
+          - dupl
+          - varnamelen
+          - mnd
 
-    # Exclude godot for TODO comments
-    - linters:
-        - godot
-      source: "// TODO"
+      # Exclude line length for long test names
+      - linters:
+          - lll
+        source: "^func Test"
 
-    # Exclude certain errors in main.go for CLI patterns
-    - path: main\.go
-      linters:
-        - funlen # Main functions can be longer in CLI apps
-        - mnd # Magic numbers are acceptable in CLI main
-        - gochecknoinits # Init functions might be needed in CLI main
+      # Allow long lines in comments for URLs
+      - linters:
+          - lll
+        source: "// http"
 
-    # CLI apps often have longer functions in main
-    - path: main\.go
-      linters:
-        - funlen
-        - mnd
-        - gocognit
+      # Exclude godot for TODO comments
+      - linters:
+          - godot
+        source: "// TODO"
 
-    # Test files don't need error wrapping or magic number checks
-    - path: _test\.go
-      linters:
-        - errorlint
+      # CLI-specific exclusions
+      - path: main\.go
+        linters:
+          - mnd
+          - gochecknoinits
+          - gocognit
 
-    # Allow magic numbers in configuration and test files
-    - path: (config|test)
-      linters:
-        - mnd
+      # Test files don't need error wrapping
+      - path: _test\.go
+        linters:
+          - errorlint
 
-    # Exclude errcheck for intentionally ignored errors in formatters
-    - path: internal/formatters.*\.go
-      linters:
-        - errcheck
-      text: "Error return value of `fmt\\.(Fprint|Fprintf|Fprintln)` is not checked"
+      # Allow magic numbers in config and test files
+      - path: (config|test)
+        linters:
+          - mnd
 
-    # Exclude errcheck for defer Close() calls
-    - linters:
-        - errcheck
-      text: "Error return value of.*Close.*is not checked"
+      # Formatter-specific exclusions
+      - path: internal/formatters.*\.go
+        linters:
+          - errcheck
+        text: "Error return value of `fmt\\.(Fprint|Fprintf|Fprintln)` is not checked"
 
-    # Exclude errcheck for output functions in CLI context
-    - linters:
-        - errcheck
-      text: "Error return value of.*Write.*is not checked"
+      # Defer Close() calls
+      - linters:
+          - errcheck
+        text: "Error return value of.*Close.*is not checked"
 
-    # Allow longer functions in CLI dispatcher and commands
-    - path: internal/cli_(dispatcher|commands)\.go
-      linters:
-        - funlen
-        - gocyclo
-        - gocognit
+      # Output functions in CLI context
+      - linters:
+          - errcheck
+        text: "Error return value of.*Write.*is not checked"
 
-  # Exclude default patterns
-  exclude-use-default: false
-  exclude:
-    # CLI specific excludes
-    - "should have a package comment" # Not all packages need comments in CLI apps
-    - "don't use `init` function" # Sometimes needed for CLI initialization
+      # CLI dispatcher and commands
+      - path: internal/cli_(dispatcher|commands)\.go
+        linters:
+          - gocyclo
+          - gocognit
+
+    # Report unused exclusions as warnings
+    warn-unused: true
 
   # Issue limits
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
   fix: false
+
+# Formatters configuration - v2 feature
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports

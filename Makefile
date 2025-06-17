@@ -4,15 +4,14 @@
 # This Makefile provides a set of targets for developing,
 # testing, building, and releasing the TMDB CLI application.
 #
-# GOLANGCI-LINT VERSION: v1.64.8 (Last stable V1 version)
-# ========================================================
-#
-# We use golangci-lint v1.64.8, which is the last stable V1 version.
-# V2 behaves weirdly with GitHub Actions.
+# GOLANGCI-LINT VERSION: v2.1.6 (Latest version)
+# ==============================================
 
 .PHONY: all build test clean install run fmt vet lint fix help
 .PHONY: release release-snapshot release-test tools deps check
-.PHONY: coverage benchmark security
+.PHONY: coverage benchmark security test-all test-integration test-e2e
+.PHONY: coverage-clean coverage-check merge-coverage dev dev-fix version
+.PHONY: clean-all run-example build-all pre-release
 
 # Variables
 BINARY_NAME=tmdb-cli
@@ -22,7 +21,7 @@ DIST_DIR=./dist
 COVERAGE_DIR=./coverage
 
 # Tool versions
-GOLANGCI_LINT_VERSION=v1.64.8
+GOLANGCI_LINT_VERSION=v2.1.6
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -91,107 +90,16 @@ fix:
 		exit 1; \
 	fi
 
-# Run unit tests only with proper coverage
+## Testing targets
+
+# Run unit tests
 test:
-	@echo "$(BLUE)Running unit tests with coverage...$(NC)"
-	@mkdir -p $(COVERAGE_DIR)
-	@go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage.out -coverpkg=./internal/... ./tests/unit/...
-	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
-		echo "$(GREEN)Unit tests completed with coverage data$(NC)"; \
-	else \
-		echo "$(YELLOW)No coverage data generated$(NC)"; \
-	fi
+	@echo "$(BLUE)Running unit tests...$(NC)"
+	@go test -v -race -coverprofile=coverage.out ./...
 
-# Run all tests including integration and e2e with coverage
-test-all:
-	@echo "$(BLUE)Running all tests with coverage...$(NC)"
-	@mkdir -p $(COVERAGE_DIR)
-	@rm -f $(COVERAGE_DIR)/coverage-*.out $(COVERAGE_DIR)/coverage-merged.out
-	@echo "Running unit tests..."
-	@go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage-unit.out -coverpkg=./internal/... ./tests/unit/... || true
-	@if [ -d "./tests/integration" ] && [ -n "$$(find ./tests/integration -name '*.go' 2>/dev/null)" ]; then \
-		if [ -z "$$TMDB_API_KEY" ]; then \
-			echo "$(YELLOW)TMDB_API_KEY not set, skipping integration tests$(NC)"; \
-		else \
-			echo "Running integration tests..."; \
-			go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage-integration.out -coverpkg=./internal/... ./tests/integration/... || true; \
-		fi; \
-	else \
-		echo "$(YELLOW)No integration tests found, skipping$(NC)"; \
-	fi
-	@if [ -d "./tests/e2e" ] && [ -n "$$(find ./tests/e2e -name '*.go' 2>/dev/null)" ]; then \
-		if [ -z "$$TMDB_API_KEY" ]; then \
-			echo "$(YELLOW)TMDB_API_KEY not set, skipping E2E tests$(NC)"; \
-		else \
-			echo "Running E2E tests..."; \
-			go test -v -race -coverprofile=$(COVERAGE_DIR)/coverage-e2e.out -coverpkg=./internal/... ./tests/e2e/... || true; \
-		fi; \
-	else \
-		echo "$(YELLOW)No E2E tests found, skipping$(NC)"; \
-	fi
-	@echo "Merging coverage profiles..."
-	@$(MAKE) merge-coverage
-
-# Merge multiple coverage profiles
-merge-coverage:
-	@echo "$(BLUE)Merging coverage profiles...$(NC)"
-	@if ls $(COVERAGE_DIR)/coverage-*.out >/dev/null 2>&1; then \
-		echo "mode: set" > $(COVERAGE_DIR)/coverage-merged.out; \
-		for file in $(COVERAGE_DIR)/coverage-*.out; do \
-			if [ -f "$$file" ] && [ -s "$$file" ]; then \
-				tail -n +2 "$$file" >> $(COVERAGE_DIR)/coverage-merged.out; \
-			fi; \
-		done; \
-		cp $(COVERAGE_DIR)/coverage-merged.out $(COVERAGE_DIR)/coverage.out; \
-		echo "$(GREEN)Coverage profiles merged$(NC)"; \
-	else \
-		echo "$(YELLOW)No coverage profiles to merge$(NC)"; \
-	fi
-
-# Run tests with coverage report
-coverage: test
-	@echo "$(BLUE)Generating coverage report...$(NC)"
-	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
-		go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html; \
-		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage.out | grep total: | awk '{print $$3}' || echo "0.0%"); \
-		echo "$(GREEN)Coverage: $$COVERAGE$(NC)"; \
-		echo "$(GREEN)Coverage report generated: $(COVERAGE_DIR)/coverage.html$(NC)"; \
-	else \
-		echo "$(YELLOW)No coverage data found$(NC)"; \
-	fi
-
-# Generate coverage report excluding test packages - Already clean with our structure
-coverage-clean: test
-	@echo "$(BLUE)Coverage already clean - tests in separate directory...$(NC)"
-	@if [ -f $(COVERAGE_DIR)/coverage.out ]; then \
-		cp $(COVERAGE_DIR)/coverage.out $(COVERAGE_DIR)/coverage-clean.out; \
-		go tool cover -html=$(COVERAGE_DIR)/coverage-clean.out -o $(COVERAGE_DIR)/coverage-clean.html; \
-		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage-clean.out | grep total: | awk '{print $$3}' || echo "0.0%"); \
-		echo "$(GREEN)Coverage: $$COVERAGE$(NC)"; \
-		echo "$(GREEN)Clean coverage report generated: $(COVERAGE_DIR)/coverage-clean.html$(NC)"; \
-	else \
-		echo "$(YELLOW)No coverage data found$(NC)"; \
-	fi
-
-# Coverage with threshold check
-coverage-check: coverage-clean
-	@echo "$(BLUE)Checking coverage threshold...$(NC)"
-	@if [ -f $(COVERAGE_DIR)/coverage-clean.out ]; then \
-		COVERAGE=$$(go tool cover -func=$(COVERAGE_DIR)/coverage-clean.out 2>/dev/null | grep total: | awk '{print $$3}' | sed 's/%//' || echo "0"); \
-		echo "Coverage: $$COVERAGE%"; \
-		if command -v bc >/dev/null 2>&1; then \
-			if [ $$(echo "$$COVERAGE < 70" | bc -l 2>/dev/null || echo "1") -eq 1 ]; then \
-				echo "$(RED)Error: Coverage $$COVERAGE% is below minimum threshold of 70%$(NC)"; \
-				exit 1; \
-			else \
-				echo "$(GREEN)Coverage $$COVERAGE% meets minimum threshold$(NC)"; \
-			fi; \
-		else \
-			echo "$(YELLOW)bc not available, skipping coverage threshold check$(NC)"; \
-		fi; \
-	else \
-		echo "$(YELLOW)No coverage data to check$(NC)"; \
-	fi
+# Run all tests (unit, integration, e2e)
+test-all: test test-integration test-e2e
+	@echo "$(GREEN)All tests completed$(NC)"
 
 # Run integration tests (requires TMDB_API_KEY)
 test-integration:
@@ -204,8 +112,8 @@ test-integration:
 		go test -v -tags=integration ./tests/integration/...; \
 	fi
 
-# Run end-to-end tests (requires TMDB_API_KEY)
-test-e2e: build
+# Run E2E tests
+test-e2e:
 	@echo "$(BLUE)Running E2E tests...$(NC)"
 	@if [ ! -d "./tests/e2e" ] || [ -z "$$(find ./tests/e2e -name '*.go' 2>/dev/null)" ]; then \
 		echo "$(YELLOW)No E2E tests found$(NC)"; \
@@ -213,6 +121,47 @@ test-e2e: build
 		echo "$(YELLOW)TMDB_API_KEY not set, skipping E2E tests$(NC)"; \
 	else \
 		go test -v -tags=e2e ./tests/e2e/...; \
+	fi
+
+# Generate test coverage report
+coverage: test
+	@echo "$(BLUE)Generating coverage report...$(NC)"
+	@mkdir -p $(COVERAGE_DIR)
+	@go tool cover -html=coverage.out -o $(COVERAGE_DIR)/coverage.html
+	@go tool cover -func=coverage.out
+	@echo "$(GREEN)Coverage report generated: $(COVERAGE_DIR)/coverage.html$(NC)"
+
+# Generate coverage for implementation code (tests in separate package)
+coverage-clean:
+	@echo "$(BLUE)Generating coverage report (excluding tests)...$(NC)"
+	@mkdir -p $(COVERAGE_DIR)
+	@go test -v -coverprofile=coverage.out -coverpkg=./internal/...,./main.go ./tests/unit
+	@go tool cover -html=coverage.out -o $(COVERAGE_DIR)/coverage-clean.html
+	@go tool cover -func=coverage.out | grep -v "test\|fixtures\|helpers"
+	@echo "$(GREEN)Coverage report generated: $(COVERAGE_DIR)/coverage-clean.html$(NC)"
+
+# Check coverage meets threshold
+coverage-check: coverage-clean
+	@echo "$(BLUE)Checking coverage threshold...$(NC)"
+	@coverage=$$(go tool cover -func=coverage.out | grep total | awk '{print $$3}' | sed 's/%//'); \
+	threshold=80; \
+	if [ $$(echo "$$coverage < $$threshold" | bc) -eq 1 ]; then \
+		echo "$(RED)Coverage $$coverage% is below threshold $$threshold%$(NC)"; \
+		exit 1; \
+	else \
+		echo "$(GREEN)Coverage $$coverage% meets threshold $$threshold%$(NC)"; \
+	fi
+
+# Merge multiple coverage profiles
+merge-coverage:
+	@echo "$(BLUE)Merging coverage profiles...$(NC)"
+	@if ls coverage-*.out 1> /dev/null 2>&1; then \
+		echo "mode: atomic" > coverage-merged.out; \
+		tail -q -n +2 coverage-*.out >> coverage-merged.out; \
+		mv coverage-merged.out coverage.out; \
+		echo "$(GREEN)Coverage profiles merged$(NC)"; \
+	else \
+		echo "$(YELLOW)No coverage profiles to merge$(NC)"; \
 	fi
 
 # Run benchmarks
@@ -267,19 +216,19 @@ tools:
 	fi
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
 	else \
 		CURRENT_VERSION=$$(golangci-lint --version | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1); \
 		if [ "$$CURRENT_VERSION" != "$(GOLANGCI_LINT_VERSION)" ]; then \
 			echo "Updating golangci-lint from $$CURRENT_VERSION to $(GOLANGCI_LINT_VERSION)..."; \
-			curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
+			curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
 		else \
 			echo "golangci-lint $(GOLANGCI_LINT_VERSION) already installed"; \
 		fi; \
 	fi
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
-		go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest; \
+		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
 	@echo "$(GREEN)Tools installation complete$(NC)"
 
@@ -340,7 +289,7 @@ clean-all: clean
 	@go clean -modcache
 	@go clean -cache
 
-# Check code quality with updated linter
+# Check code quality
 check: deps fmt vet lint test security
 	@echo "$(GREEN)All quality checks passed with golangci-lint $(GOLANGCI_LINT_VERSION)!$(NC)"
 
@@ -385,39 +334,32 @@ help:
 	@echo "  benchmark         Run benchmarks"
 	@echo "  security          Run security scan (requires gosec)"
 	@echo "  check             Run all quality checks"
-	@echo "  dev               Development workflow (deps, fmt, vet, test, build)"
-	@echo "  dev-fix           Development workflow with auto-fix (deps, fmt, fix, test, build)"
+	@echo "  dev               Complete development workflow"
+	@echo "  dev-fix           Development workflow with auto-fix"
 	@echo ""
-	@echo "$(YELLOW)Building:$(NC)"
+	@echo "$(YELLOW)Build:$(NC)"
 	@echo "  build             Build binary for current platform"
 	@echo "  build-all         Build for multiple platforms"
 	@echo "  install           Install binary to GOPATH/bin"
-	@echo "  run ARGS='...'    Build and run with arguments"
-	@echo "  run-example       Run with example command"
 	@echo ""
 	@echo "$(YELLOW)Release:$(NC)"
-	@echo "  tools             Install development tools (golangci-lint $(GOLANGCI_LINT_VERSION))"
 	@echo "  release-check     Validate GoReleaser configuration"
-	@echo "  release-snapshot  Create snapshot release (no publish)"
+	@echo "  release-snapshot  Test release (snapshot)"
 	@echo "  release-test      Test release build"
-	@echo "  release           Create full release (requires tag)"
+	@echo "  release           Create a full release (requires tag)"
 	@echo "  pre-release       Run all checks before release"
 	@echo ""
-	@echo "$(YELLOW)Utility:$(NC)"
+	@echo "$(YELLOW)Utilities:$(NC)"
+	@echo "  run               Run the application"
+	@echo "  run-example       Run with example (popular movies)"
 	@echo "  clean             Clean build artifacts"
-	@echo "  clean-all         Deep clean (including caches)"
+	@echo "  clean-all         Deep clean including caches"
+	@echo "  tools             Install development tools"
 	@echo "  version           Show version information"
-	@echo "  help              Show this help"
+	@echo "  help              Show this help message"
 	@echo ""
-	@echo "$(YELLOW)Examples:$(NC)"
-	@echo "  make dev                    # Development workflow"
-	@echo "  make dev-fix                # Development workflow with auto-fix"
-	@echo "  make fix                    # Auto-fix code issues"
-	@echo "  make run ARGS='popular 10'  # Run with arguments"
-	@echo "  make test-integration       # Integration tests"
-	@echo "  make release-snapshot       # Test release"
-	@echo ""
-	@echo "$(YELLOW)golangci-lint Info:$(NC)"
-	@echo "  Version: $(GOLANGCI_LINT_VERSION) (Last stable V1 version)"
-	@echo "  Config:  .golangci.yml"
-	@echo "  Action:  golangci/golangci-lint-action@v6"
+	@echo "$(YELLOW)Environment Variables:$(NC)"
+	@echo "  ARGS              Additional arguments for 'make run'"
+	@echo "  GOOS              Target operating system"
+	@echo "  GOARCH            Target architecture"
+	@echo "  TMDB_API_KEY      API key for integration tests"
