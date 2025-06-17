@@ -373,8 +373,8 @@ func TestConfigHelpIntegration(t *testing.T) {
 			}()
 
 			// Set test environment to allow placeholder API key
-			os.Setenv("GO_TEST", "1")
-			defer os.Unsetenv("GO_TEST")
+			_ = os.Setenv("GO_TEST", "1")
+			defer func() { _ = os.Unsetenv("GO_TEST") }()
 
 			// Debug: Check what's in the config file
 			content, err := os.ReadFile("config.yaml")
@@ -492,7 +492,7 @@ func validateExampleConfigYAML(t *testing.T, configPath string) {
 	yamlContent := strings.Join(yamlLines, "\n")
 
 	// Parse YAML
-	var config map[string]interface{}
+	var config map[string]any
 	err = yaml.Unmarshal([]byte(yamlContent), &config)
 	require.NoError(t, err, "Example config should be valid YAML")
 

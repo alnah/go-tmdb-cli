@@ -1,10 +1,6 @@
 // Package internal provides core data structures and utilities for the TMDB CLI application.
 package internal
 
-import (
-	"time"
-)
-
 // Cache constants.
 const (
 	MaxCacheSize = 100
@@ -16,7 +12,7 @@ func (c *Client) getFromCache(key string) []byte {
 	defer c.cacheMu.RUnlock()
 
 	item, ok := c.cache[key]
-	if !ok || time.Now().After(item.expiry) {
+	if !ok || c.clock.Now().After(item.expiry) {
 		return nil
 	}
 	return item.data
@@ -29,7 +25,7 @@ func (c *Client) putInCache(key string, data []byte) {
 
 	c.cache[key] = cachedItem{
 		data:   data,
-		expiry: time.Now().Add(c.config.CacheTTL),
+		expiry: c.clock.Now().Add(c.config.CacheTTL),
 	}
 
 	// Simple cleanup: remove expired items periodically
@@ -43,7 +39,7 @@ func (c *Client) cleanupCache() {
 	c.cacheMu.Lock()
 	defer c.cacheMu.Unlock()
 
-	now := time.Now()
+	now := c.clock.Now()
 	for key, item := range c.cache {
 		if now.After(item.expiry) {
 			delete(c.cache, key)
