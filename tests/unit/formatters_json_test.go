@@ -372,7 +372,7 @@ func TestJSONOutputFormatting(t *testing.T) {
 			name: "valid JSON structure",
 			validateFunc: func(t *testing.T, output string) {
 				t.Helper()
-				var result map[string]interface{}
+				var result map[string]any
 				err := json.Unmarshal([]byte(output), &result)
 				require.NoError(t, err, "Output should be valid JSON")
 			},
