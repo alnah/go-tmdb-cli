@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,10 @@ import (
 	"github.com/alnah/tmdb-cli/tests/fixtures"
 	"github.com/alnah/tmdb-cli/tests/helpers"
 )
+
+func formatInt(i int) string {
+	return strconv.Itoa(i)
+}
 
 func TestValidateConfig(t *testing.T) {
 	t.Run("valid config passes validation", func(t *testing.T) {
