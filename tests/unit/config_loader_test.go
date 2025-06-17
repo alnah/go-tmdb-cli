@@ -241,7 +241,7 @@ log_level: "debug"
 format: "json"
 `
 
-		helpers.WithTempFile(t, yamlContent, func(configPath string) {
+		helpers.WithTempFile(t, yamlContent, func(_ string) {
 			helpers.WithMockEnvironment(t, map[string]string{
 				"TMDB_API_KEY": "env-key-override", // Should override file
 			}, func() {
@@ -252,7 +252,7 @@ format: "json"
 				configFile := filepath.Join(workingDir, "config.yaml")
 				err = os.WriteFile(configFile, []byte(yamlContent), 0o644)
 				require.NoError(t, err)
-				defer os.Remove(configFile)
+				defer func() { _ = os.Remove(configFile) }()
 
 				config, err := internal.LoadConfig()
 				require.NoError(t, err)
@@ -283,7 +283,7 @@ log_level: "warn"
 		configFile := filepath.Join(workingDir, "tmdb.yaml")
 		err = os.WriteFile(configFile, []byte(yamlContent), 0o644)
 		require.NoError(t, err)
-		defer os.Remove(configFile)
+		defer func() { _ = os.Remove(configFile) }()
 
 		config, err := internal.LoadConfig()
 		require.NoError(t, err)
@@ -319,7 +319,7 @@ invalid: yaml: content: [
 		configFile := filepath.Join(workingDir, "config.yaml")
 		err = os.WriteFile(configFile, []byte(invalidYAML), 0o644)
 		require.NoError(t, err)
-		defer os.Remove(configFile)
+		defer func() { _ = os.Remove(configFile) }()
 
 		helpers.WithMockEnvironment(t, map[string]string{
 			"TMDB_API_KEY": "fallback-key",
@@ -344,7 +344,7 @@ timeout: "90s"
 		configFile := filepath.Join(workingDir, "config.yaml")
 		err = os.WriteFile(configFile, []byte(partialYAML), 0o644)
 		require.NoError(t, err)
-		defer os.Remove(configFile)
+		defer func() { _ = os.Remove(configFile) }()
 
 		config, err := internal.LoadConfig()
 		require.NoError(t, err)
@@ -378,7 +378,7 @@ format: "csv"
 		configFile := filepath.Join(workingDir, "config.yaml")
 		err = os.WriteFile(configFile, []byte(yamlContent), 0o644)
 		require.NoError(t, err)
-		defer os.Remove(configFile)
+		defer func() { _ = os.Remove(configFile) }()
 
 		helpers.WithMockEnvironment(t, map[string]string{
 			"TMDB_API_KEY":   "env-override-key",
@@ -474,7 +474,7 @@ log_level: "warn"
 		configFile := filepath.Join(workingDir, "config.yaml")
 		err = os.WriteFile(configFile, []byte(yamlContent), 0o644)
 		require.NoError(t, err)
-		defer os.Remove(configFile)
+		defer func() { _ = os.Remove(configFile) }()
 
 		helpers.WithMockEnvironment(t, map[string]string{
 			"TMDB_API_KEY": "env-key", // Should override file

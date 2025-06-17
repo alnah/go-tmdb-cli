@@ -200,7 +200,7 @@ func TestLoggerDebug(t *testing.T) {
 			logger.Debug(tt.message, tt.args...)
 
 			// Close write end and restore stderr
-			w.Close()
+			_ = w.Close()
 			os.Stderr = originalStderr
 
 			// Read captured output

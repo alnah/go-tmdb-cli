@@ -64,7 +64,7 @@ func TestFormatMoviesJSON(t *testing.T) {
 		{
 			name:   "format empty movies collection",
 			movies: fixtures.EmptyMovies,
-			validateFunc: func(t *testing.T, output string, movies []internal.Movie) {
+			validateFunc: func(t *testing.T, output string, _ []internal.Movie) {
 				t.Helper()
 				var result struct {
 					Movies []internal.Movie `json:"movies"`
@@ -124,7 +124,7 @@ func TestFormatMoviesJSON(t *testing.T) {
 					Adult:         false,
 				},
 			},
-			validateFunc: func(t *testing.T, output string, movies []internal.Movie) {
+			validateFunc: func(t *testing.T, output string, _ []internal.Movie) {
 				t.Helper()
 				var result struct {
 					Movies []internal.Movie `json:"movies"`
@@ -221,7 +221,7 @@ func TestFormatTVShowsJSON(t *testing.T) {
 		{
 			name:    "format empty TV shows collection",
 			tvShows: fixtures.EmptyTVShows,
-			validateFunc: func(t *testing.T, output string, tvShows []internal.TVShow) {
+			validateFunc: func(t *testing.T, output string, _ []internal.TVShow) {
 				t.Helper()
 				var result struct {
 					TVShows []internal.TVShow `json:"tv_shows"`

@@ -230,7 +230,7 @@ func TestFormatOptionsValidation(t *testing.T) {
 				Format:   "table",
 				MaxWidth: 80,
 			},
-			validateFunc: func(t *testing.T, output string) {
+			validateFunc: func(t *testing.T, _ string) {
 				t.Helper()
 				helpers.ValidateFormatOptionsEdgeCases(t, internal.FormatOptions{
 					Format:   "table",
@@ -244,7 +244,7 @@ func TestFormatOptionsValidation(t *testing.T) {
 				Format:   "json",
 				MaxWidth: 0,
 			},
-			validateFunc: func(t *testing.T, output string) {
+			validateFunc: func(t *testing.T, _ string) {
 				t.Helper()
 				helpers.ValidateFormatOptionsEdgeCases(t, internal.FormatOptions{
 					Format:   "json",

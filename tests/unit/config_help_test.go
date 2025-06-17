@@ -96,7 +96,7 @@ func TestCreateExampleConfig(t *testing.T) {
 		helpers.WithTempDir(t, "tmdb-config-test-*", func(tempDir string) {
 			// Create a read-only directory
 			readOnlyDir := filepath.Join(tempDir, "readonly")
-			err := os.Mkdir(readOnlyDir, 0o555) // Read and execute only
+			err := os.Mkdir(readOnlyDir, 0o555) // #nosec
 			require.NoError(t, err)
 
 			configPath := filepath.Join(readOnlyDir, "config.yaml")

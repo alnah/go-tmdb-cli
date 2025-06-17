@@ -7,6 +7,7 @@ import (
 	"github.com/alnah/tmdb-cli/internal"
 )
 
+// SampleMovie fixture.
 var SampleMovie = internal.Movie{
 	ID:            123,
 	Title:         "The Matrix",
@@ -22,6 +23,7 @@ var SampleMovie = internal.Movie{
 	ReleaseDate:   "1999-03-31",
 }
 
+// SampleMovieWithDifferentOriginal fixture.
 var SampleMovieWithDifferentOriginal = internal.Movie{
 	ID:            456,
 	Title:         "Spirited Away",
@@ -37,6 +39,7 @@ var SampleMovieWithDifferentOriginal = internal.Movie{
 	ReleaseDate:   "2001-07-20",
 }
 
+// InvalidMovie fixture.
 var InvalidMovie = internal.Movie{
 	ID:            0,  // Invalid ID
 	Title:         "", // Empty title
@@ -51,6 +54,7 @@ var InvalidMovie = internal.Movie{
 	Adult:         false,
 }
 
+// SampleTVShow fixture.
 var SampleTVShow = internal.TVShow{
 	ID:           789,
 	Name:         "Breaking Bad",
@@ -66,6 +70,7 @@ var SampleTVShow = internal.TVShow{
 	FirstAirDate: "2008-01-20",
 }
 
+// SampleTVShowWithDifferentOriginal fixture.
 var SampleTVShowWithDifferentOriginal = internal.TVShow{
 	ID:           101,
 	Name:         "Squid Game",
@@ -81,6 +86,7 @@ var SampleTVShowWithDifferentOriginal = internal.TVShow{
 	FirstAirDate: "2021-09-17",
 }
 
+// InvalidTVShow fixture.
 var InvalidTVShow = internal.TVShow{
 	ID:           -1, // Invalid ID
 	Name:         "", // Empty name
@@ -95,6 +101,7 @@ var InvalidTVShow = internal.TVShow{
 	Adult:        false,
 }
 
+// SampleTMDBMovie fixture.
 var SampleTMDBMovie = internal.TMDBMovie{
 	ID:            123,
 	Title:         "The Matrix",
@@ -109,6 +116,7 @@ var SampleTMDBMovie = internal.TMDBMovie{
 	Video:         false,
 }
 
+// SampleTMDBTVShow fixture.
 var SampleTMDBTVShow = internal.TMDBTVShow{
 	ID:               789,
 	Name:             "Breaking Bad",
@@ -123,6 +131,7 @@ var SampleTMDBTVShow = internal.TMDBTVShow{
 	OriginalLanguage: "en",
 }
 
+// SampleTMDBResponse fixture.
 var SampleTMDBResponse = internal.TMDBResponse{
 	Page:         1,
 	Results:      []internal.TMDBMovie{SampleTMDBMovie},
@@ -130,6 +139,7 @@ var SampleTMDBResponse = internal.TMDBResponse{
 	TotalResults: 200,
 }
 
+// SampleTMDBTVResponse fixture.
 var SampleTMDBTVResponse = internal.TMDBTVResponse{
 	Page:         1,
 	Results:      []internal.TMDBTVShow{SampleTMDBTVShow},
@@ -137,6 +147,7 @@ var SampleTMDBTVResponse = internal.TMDBTVResponse{
 	TotalResults: 100,
 }
 
+// SampleSearchResult fixture.
 var SampleSearchResult = internal.SearchResult{
 	Movies:       []internal.Movie{SampleMovie},
 	Page:         1,
@@ -144,6 +155,7 @@ var SampleSearchResult = internal.SearchResult{
 	TotalResults: 50,
 }
 
+// SampleTVSearchResult fixture.
 var SampleTVSearchResult = internal.TVSearchResult{
 	TVShows:      []internal.TVShow{SampleTVShow},
 	Page:         1,
@@ -151,6 +163,7 @@ var SampleTVSearchResult = internal.TVSearchResult{
 	TotalResults: 25,
 }
 
+// SampleConfig fixture.
 var SampleConfig = internal.Config{
 	APIKey:     "test-api-key-12345",
 	BaseURL:    "https://api.themoviedb.org/3",
@@ -161,6 +174,7 @@ var SampleConfig = internal.Config{
 	Format:     "table",
 }
 
+// InvalidConfig fixture.
 var InvalidConfig = internal.Config{
 	APIKey:     "", // Missing API key
 	BaseURL:    "invalid-url",
@@ -171,6 +185,7 @@ var InvalidConfig = internal.Config{
 	Format:     "invalid",        // Invalid format
 }
 
+// ValidSearchOptions fixture.
 var ValidSearchOptions = internal.SearchOptions{
 	Query:         "matrix",
 	Page:          1,
@@ -187,6 +202,7 @@ var ValidSearchOptions = internal.SearchOptions{
 	MaxItems:      20,
 }
 
+// InvalidSearchOptions fixture.
 var InvalidSearchOptions = internal.SearchOptions{
 	Query:         "", // Empty query
 	Page:          -1, // Invalid page
@@ -203,6 +219,7 @@ var InvalidSearchOptions = internal.SearchOptions{
 	MaxItems:      -1, // Invalid max items
 }
 
+// GenreTestCases fixture.
 var GenreTestCases = []struct {
 	Name     string
 	Input    []string
@@ -253,6 +270,7 @@ var GenreTestCases = []struct {
 	},
 }
 
+// YearTestCases fixture.
 var YearTestCases = []struct {
 	Name        string
 	Input       string
@@ -303,6 +321,7 @@ var YearTestCases = []struct {
 	},
 }
 
+// RatingTestCases fixture.
 var RatingTestCases = []struct {
 	Name        string
 	Rating      float64
@@ -347,6 +366,7 @@ var RatingTestCases = []struct {
 	},
 }
 
+// VoteTestCases fixtures.
 var VoteTestCases = []struct {
 	Name        string
 	Votes       int
@@ -391,6 +411,7 @@ var VoteTestCases = []struct {
 	},
 }
 
+// HelperTestCases fixtures.
 var HelperTestCases = struct {
 	HighlyRated []struct {
 		Rating   float64
