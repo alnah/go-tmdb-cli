@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -79,10 +80,8 @@ func TestNewClient(t *testing.T) {
 	})
 
 	t.Run("starts background genre loading", func(t *testing.T) {
-		// Create a mock HTTP transport that tracks requests
-		transport := &mockTransport{
-			responses: make(map[string]*http.Response),
-		}
+		// Create a thread-safe mock HTTP transport that tracks requests
+		transport := newMockTransport()
 
 		httpClient := &http.Client{
 			Transport: transport,
@@ -93,7 +92,7 @@ func TestNewClient(t *testing.T) {
 		client := internal.NewClientWithHTTPClient(config, httpClient)
 		require.NotNil(t, client)
 
-		// Give goroutines time to start
+		// Give goroutines time to start and make requests
 		time.Sleep(100 * time.Millisecond)
 
 		// Verify that genre loading requests were attempted
@@ -169,10 +168,8 @@ func TestNewClientWithClock(t *testing.T) {
 			CurrentTime: time.Now(),
 		}
 
-		// Create a mock HTTP transport
-		transport := &mockTransport{
-			responses: make(map[string]*http.Response),
-		}
+		// Create a thread-safe mock HTTP transport
+		transport := newMockTransport()
 
 		httpClient := &http.Client{
 			Transport: transport,
@@ -187,7 +184,7 @@ func TestNewClientWithClock(t *testing.T) {
 		client.LoadGenres()
 		client.LoadTVGenres()
 
-		// Give time for requests
+		// Give time for requests to complete
 		time.Sleep(50 * time.Millisecond)
 
 		// Verify requests were made
@@ -282,15 +279,29 @@ func TestClientRateLimiting(t *testing.T) {
 }
 
 // mockTransport is a test helper for tracking HTTP requests.
+// It is thread-safe and can be used concurrently.
 type mockTransport struct {
+	mu        sync.RWMutex
 	requests  []string
 	responses map[string]*http.Response
 }
 
-func (mt *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	mt.requests = append(mt.requests, req.URL.Path)
+func newMockTransport() *mockTransport {
+	return &mockTransport{
+		responses: make(map[string]*http.Response),
+	}
+}
 
-	if resp, ok := mt.responses[req.URL.Path]; ok {
+func (mt *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	mt.mu.Lock()
+	mt.requests = append(mt.requests, req.URL.Path)
+	mt.mu.Unlock()
+
+	mt.mu.RLock()
+	resp, ok := mt.responses[req.URL.Path]
+	mt.mu.RUnlock()
+
+	if ok {
 		return resp, nil
 	}
 
@@ -302,5 +313,7 @@ func (mt *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (mt *mockTransport) hasRequest(path string) bool {
+	mt.mu.RLock()
+	defer mt.mu.RUnlock()
 	return slices.Contains(mt.requests, path)
 }
