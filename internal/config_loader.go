@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -94,11 +95,11 @@ func loadFromEnvironment(config *Config) {
 
 	// Log Level
 	if logLevel := os.Getenv("TMDB_LOG_LEVEL"); logLevel != "" {
-		config.LogLevel = logLevel
+		config.LogLevel = strings.TrimSpace(logLevel)
 	}
 
 	// Default Format
 	if format := os.Getenv("TMDB_FORMAT"); format != "" {
-		config.Format = format
+		config.Format = strings.TrimSpace(format)
 	}
 }
