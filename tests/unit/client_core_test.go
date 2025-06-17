@@ -247,16 +247,23 @@ func TestClientRateLimiting(t *testing.T) {
 		// Make rapid requests to test rate limiting
 		start := time.Now()
 
-		// Try to make requests faster than rate limit allows
-		for range 5 {
+		// Make more than burst limit (10) requests to trigger rate limiting
+		// First 10 will be immediate due to burst, then rate limiting kicks in
+		for range 15 {
 			err := client.WaitForRateLimit(context.Background())
 			assert.NoError(t, err)
 		}
 
 		elapsed := time.Since(start)
 
-		// With 3.5 req/sec rate limit, 5 requests should take at least 1 second
-		assert.GreaterOrEqual(t, elapsed, 1*time.Second, "Rate limiting should slow down requests")
+		// After burst of 10, remaining 5 requests at 3.5/sec should take ~1.4 seconds
+		// Be conservative and check for at least 1 second
+		assert.GreaterOrEqual(
+			t,
+			elapsed,
+			1*time.Second,
+			"Rate limiting should slow down requests after burst",
+		)
 	})
 
 	t.Run("rate limiter respects context cancellation", func(t *testing.T) {

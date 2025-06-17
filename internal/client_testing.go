@@ -177,6 +177,9 @@ func NewClientWithHTTPClient(config Config, httpClient *http.Client) *Client {
 		tvGenres:    make(map[int]string),
 	}
 
+	go client.loadGenres()
+	go client.loadTVGenres()
+
 	return client
 }
 
