@@ -60,7 +60,7 @@ func (c *Client) loadTVGenres() {
 
 // loadGenreMapping is a generic function to load genre mappings.
 func (c *Client) loadGenreMapping(endpoint string, handler func([]Genre)) {
-	ctx, cancel := context.WithTimeout(context.Background(), LoadGenresTimeout*time.Second)
+	ctx, cancel := c.clock.WithTimeout(context.Background(), LoadGenresTimeout*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
