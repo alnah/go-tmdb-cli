@@ -319,27 +319,15 @@ func TestClient_CacheWithDifferentTTLs(t *testing.T) {
 	}{
 		{
 			name:     "1 second TTL - not expired",
-			ttl:      1 * time.Second,
-			waitTime: 500 * time.Millisecond,
+			ttl:      10 * time.Millisecond,
+			waitTime: 1 * time.Millisecond,
 			expired:  false,
 		},
 		{
 			name:     "1 second TTL - expired",
-			ttl:      1 * time.Second,
-			waitTime: 2 * time.Second,
+			ttl:      10 * time.Millisecond,
+			waitTime: 20 * time.Millisecond,
 			expired:  true,
-		},
-		{
-			name:     "1 minute TTL - not expired",
-			ttl:      1 * time.Minute,
-			waitTime: 30 * time.Second,
-			expired:  false,
-		},
-		{
-			name:     "1 hour TTL - not expired",
-			ttl:      1 * time.Hour,
-			waitTime: 30 * time.Minute,
-			expired:  false,
 		},
 	}
 

@@ -1,7 +1,9 @@
 package helpers
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 )
 
 // FormatStatusCode creates a test-friendly name for HTTP status codes.
@@ -28,4 +30,9 @@ func FormatStatusCode(statusCode int) string {
 	default:
 		return fmt.Sprintf("%d_status", statusCode)
 	}
+}
+
+// CreateResponseBody creates an io.ReadCloser from byte slice for HTTP responses.
+func CreateResponseBody(data []byte) io.ReadCloser {
+	return io.NopCloser(bytes.NewReader(data))
 }

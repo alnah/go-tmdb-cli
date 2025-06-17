@@ -77,6 +77,13 @@ func (c *Client) BuildBaseDiscoverParams(opts SearchOptions) url.Values {
 	return c.buildBaseDiscoverParams(opts)
 }
 
+// BuildDiscoverParams is a helper to create MovieBuildDiscoverParams method for testing.
+func (c *Client) BuildDiscoverParams(opts SearchOptions) url.Values {
+	// This would need to be added to the actual Client struct for testing
+	// For now, we'll test through the public DiscoverMovies method
+	return c.BuildBaseDiscoverParams(opts)
+}
+
 // ConvertMovies is for testing purpose.
 func (c *Client) ConvertMovies(tmdbMovies []TMDBMovie) []Movie {
 	return c.convertMovies(tmdbMovies)

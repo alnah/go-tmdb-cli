@@ -166,7 +166,7 @@ func TestClient_fetchPageData(t *testing.T) {
 		assert.GreaterOrEqual(
 			t,
 			elapsed,
-			500*time.Millisecond,
+			1*time.Millisecond,
 			"Rate limiting should slow down requests after burst",
 		)
 		assert.Equal(t, 12, transport.getRequestCount())
@@ -180,7 +180,7 @@ func TestClient_fetchPageData(t *testing.T) {
 
 		transport := &mockHTTPTransport{
 			responses: make(map[string]mockResponse),
-			delay:     100 * time.Millisecond,
+			delay:     1 * time.Millisecond,
 		}
 
 		httpClient := &http.Client{

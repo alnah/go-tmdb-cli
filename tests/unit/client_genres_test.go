@@ -168,7 +168,7 @@ func TestClient_LoadGenres(t *testing.T) {
 		client.LoadTVGenres()
 
 		// Allow time for loading
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify movie genres loaded
 		movieNames := client.MapGenres([]int{28, 35, 18})
@@ -212,7 +212,7 @@ func TestClient_LoadGenres(t *testing.T) {
 		client.LoadTVGenres()
 
 		// Allow time for loading attempts
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify genres not loaded due to timeout
 		movieNames := client.MapGenres([]int{28, 35})
@@ -259,7 +259,7 @@ func TestClient_LoadGenres(t *testing.T) {
 		client.LoadTVGenres()
 
 		// Allow time for loading
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify genres not loaded due to errors
 		movieNames := client.MapGenres([]int{28, 35})
@@ -298,7 +298,7 @@ func TestClient_LoadGenres(t *testing.T) {
 		client.LoadTVGenres()
 
 		// Allow time for loading
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify genres not loaded due to network errors
 		movieNames := client.MapGenres([]int{28, 35})
@@ -347,7 +347,7 @@ func TestClient_LoadGenres(t *testing.T) {
 		client.LoadTVGenres()
 
 		// Allow time for loading
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify genres not loaded due to JSON errors
 		movieNames := client.MapGenres([]int{28, 35})
@@ -479,7 +479,7 @@ func TestClient_GenreTimeoutBehavior(t *testing.T) {
 		client.LoadGenres()
 
 		// Allow time for loading
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify timeout was called with correct duration
 		assert.True(t, mockClock.TimeoutCalled, "WithTimeout should have been called")

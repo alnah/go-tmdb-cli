@@ -246,7 +246,7 @@ func TestClient_RetryDelays(t *testing.T) {
 
 		// Cancel after first retry
 		go func() {
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(1 * time.Millisecond)
 			cancel()
 		}()
 

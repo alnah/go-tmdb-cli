@@ -93,7 +93,7 @@ func TestNewClient(t *testing.T) {
 		require.NotNil(t, client)
 
 		// Give goroutines time to start and make requests
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify that genre loading requests were attempted
 		assert.True(
@@ -185,7 +185,7 @@ func TestNewClientWithClock(t *testing.T) {
 		client.LoadTVGenres()
 
 		// Give time for requests to complete
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 
 		// Verify requests were made
 		assert.True(t, transport.hasRequest("/3/genre/movie/list"))
