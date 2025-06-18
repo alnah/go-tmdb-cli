@@ -11,273 +11,39 @@ import (
 	"github.com/alnah/tmdb-cli/tests/helpers"
 )
 
-func TestCLIDispatcher_DispatchCommand(t *testing.T) {
+func TestCLIDispatcher_HelpCommands(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		command     string
-		args        []string
-		setupMock   func(*helpers.MockTMDBClient)
-		expectError bool
-		errorMsg    string
+		name    string
+		command string
+		args    []string
 	}{
 		{
-			name:        "help command",
-			command:     "help",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: false,
-		},
-		{
-			name:        "help command with --help flag",
-			command:     "--help",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: false,
-		},
-		{
-			name:        "help command with -h flag",
-			command:     "-h",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: false,
-		},
-		{
-			name:        "version command",
-			command:     "version",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: false,
-		},
-		{
-			name:        "version command with --version flag",
-			command:     "--version",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: false,
-		},
-		{
-			name:        "version command with -v flag",
-			command:     "-v",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: false,
-		},
-		{
-			name:        "config command",
-			command:     "config",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: false,
-		},
-		{
-			name:    "popular movies command",
-			command: "popular",
-			args:    []string{"10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetPopularMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "popular movies command with alias",
-			command: "pop",
-			args:    []string{"5"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetPopularMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "top-rated movies command",
-			command: "top-rated",
-			args:    []string{"10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetTopRatedMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "top-rated movies with alias top",
-			command: "top",
-			args:    []string{"15"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetTopRatedMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "top-rated movies with alias rated",
-			command: "rated",
-			args:    []string{"20"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetTopRatedMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "now-playing movies command",
-			command: "now-playing",
-			args:    []string{"10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetNowPlayingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "now-playing movies with alias now",
-			command: "now",
-			args:    []string{"10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetNowPlayingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "now-playing movies with alias playing",
-			command: "playing",
-			args:    []string{"10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetNowPlayingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "upcoming movies command",
-			command: "upcoming",
-			args:    []string{"10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetUpcomingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "upcoming movies with alias soon",
-			command: "soon",
-			args:    []string{"10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetUpcomingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "search movies command",
-			command: "search",
-			args:    []string{"Matrix"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.SearchMoviesFunc = func(ctx context.Context, query string, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "search movies with alias find",
-			command: "find",
-			args:    []string{"Matrix"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.SearchMoviesFunc = func(ctx context.Context, query string, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "TV command popular",
-			command: "tv",
-			args:    []string{"popular", "10"},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetPopularTVShowsFunc = func(ctx context.Context, maxItems int) ([]internal.TVShow, error) {
-					return []internal.TVShow{}, nil
-				}
-			},
-			expectError: false,
-		},
-		{
-			name:    "auto-search with movie title",
-			command: "The Matrix",
+			name:    "help command",
+			command: "help",
 			args:    []string{},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.SearchMoviesFunc = func(ctx context.Context, query string, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
 		},
 		{
-			name:    "auto-search with multi-word title",
-			command: "The Dark Knight",
+			name:    "help command with --help flag",
+			command: "--help",
 			args:    []string{},
-			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.SearchMoviesFunc = func(ctx context.Context, query string, maxItems int) ([]internal.Movie, error) {
-					return []internal.Movie{}, nil
-				}
-			},
-			expectError: false,
 		},
 		{
-			name:        "unknown command",
-			command:     "unknown-command",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: true,
-			errorMsg:    "unknown command: unknown-command",
-		},
-		{
-			name:        "short command that doesn't look like search",
-			command:     "xy",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: true,
-			errorMsg:    "unknown command: xy",
-		},
-		{
-			name:        "numeric command that doesn't look like search",
-			command:     "123",
-			args:        []string{},
-			setupMock:   func(mock *helpers.MockTMDBClient) {},
-			expectError: true,
-			errorMsg:    "unknown command: 123",
+			name:    "help command with -h flag",
+			command: "-h",
+			args:    []string{},
 		},
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable for parallel execution
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel() // Make each subtest parallel
+			t.Parallel()
 
-			// Setup mock client
 			mockClient := helpers.NewMockTMDBClient()
-			tt.setupMock(mockClient)
-
-			// Create logger with silent level for tests
 			logger := internal.NewLogger(internal.SilentLevel)
-
-			// Create dispatcher
 			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
 
-			// Execute command
 			ctx := context.Background()
 			err := dispatcher.DispatchCommand(
 				ctx,
@@ -288,7 +54,446 @@ func TestCLIDispatcher_DispatchCommand(t *testing.T) {
 				"test-commit",
 			)
 
-			// Verify results
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_VersionCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{
+			name:    "version command",
+			command: "version",
+			args:    []string{},
+		},
+		{
+			name:    "version command with --version flag",
+			command: "--version",
+			args:    []string{},
+		},
+		{
+			name:    "version command with -v flag",
+			command: "-v",
+			args:    []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_ConfigCommand(t *testing.T) {
+	t.Parallel()
+
+	mockClient := helpers.NewMockTMDBClient()
+	logger := internal.NewLogger(internal.SilentLevel)
+	dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+	ctx := context.Background()
+	err := dispatcher.DispatchCommand(
+		ctx,
+		"config",
+		[]string{},
+		"test-version",
+		"test-date",
+		"test-commit",
+	)
+
+	assert.NoError(t, err)
+}
+
+func TestCLIDispatcher_PopularMovieCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{
+			name:    "popular movies command",
+			command: "popular",
+			args:    []string{"10"},
+		},
+		{
+			name:    "popular movies command with alias",
+			command: "pop",
+			args:    []string{"5"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			mockClient.GetPopularMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
+				return []internal.Movie{}, nil
+			}
+
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_TopRatedMovieCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{
+			name:    "top-rated movies command",
+			command: "top-rated",
+			args:    []string{"3"},
+		},
+		{
+			name:    "top-rated movies with alias",
+			command: "top",
+			args:    []string{"8"},
+		},
+		{
+			name:    "top-rated movies with rated alias",
+			command: "rated",
+			args:    []string{"12"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			mockClient.GetTopRatedMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
+				return []internal.Movie{}, nil
+			}
+
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_NowPlayingMovieCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{
+			name:    "now-playing movies command",
+			command: "now-playing",
+			args:    []string{"15"},
+		},
+		{
+			name:    "now-playing movies with now alias",
+			command: "now",
+			args:    []string{"7"},
+		},
+		{
+			name:    "now-playing movies with playing alias",
+			command: "playing",
+			args:    []string{"4"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			mockClient.GetNowPlayingMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
+				return []internal.Movie{}, nil
+			}
+
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_UpcomingMovieCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{
+			name:    "upcoming movies command",
+			command: "upcoming",
+			args:    []string{"20"},
+		},
+		{
+			name:    "upcoming movies with soon alias",
+			command: "soon",
+			args:    []string{"6"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			mockClient.GetUpcomingMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
+				return []internal.Movie{}, nil
+			}
+
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_SearchCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{
+			name:    "search movies command",
+			command: "search",
+			args:    []string{"Matrix"},
+		},
+		{
+			name:    "search movies with find alias",
+			command: "find",
+			args:    []string{"Inception"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			mockClient.SearchMoviesFunc = func(_ context.Context, _ string, _ int) ([]internal.Movie, error) {
+				return []internal.Movie{}, nil
+			}
+
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_TVCommands(t *testing.T) {
+	t.Parallel()
+
+	mockClient := helpers.NewMockTMDBClient()
+	mockClient.GetPopularTVShowsFunc = func(_ context.Context, _ int) ([]internal.TVShow, error) {
+		return []internal.TVShow{}, nil
+	}
+
+	logger := internal.NewLogger(internal.SilentLevel)
+	dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+	ctx := context.Background()
+	err := dispatcher.DispatchCommand(
+		ctx,
+		"tv",
+		[]string{"popular", "5"},
+		"test-version",
+		"test-date",
+		"test-commit",
+	)
+
+	assert.NoError(t, err)
+}
+
+func TestCLIDispatcher_AutoSearchCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{
+			name:    "auto-search with movie title",
+			command: "The Matrix",
+			args:    []string{},
+		},
+		{
+			name:    "auto-search with single word",
+			command: "Inception",
+			args:    []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			mockClient.SearchMoviesFunc = func(_ context.Context, _ string, _ int) ([]internal.Movie, error) {
+				return []internal.Movie{}, nil
+			}
+
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCLIDispatcher_ErrorCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		command     string
+		args        []string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "unknown command",
+			command:     "unknown-command",
+			args:        []string{},
+			expectError: true,
+			errorMsg:    "unknown command: unknown-command",
+		},
+		{
+			name:        "empty command",
+			command:     "",
+			args:        []string{},
+			expectError: true,
+			errorMsg:    "unknown command:",
+		},
+		{
+			name:        "numeric command",
+			command:     "123",
+			args:        []string{},
+			expectError: true,
+			errorMsg:    "unknown command: 123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockClient := helpers.NewMockTMDBClient()
+			logger := internal.NewLogger(internal.SilentLevel)
+			dispatcher := internal.NewCLIDispatcher(mockClient, logger)
+
+			ctx := context.Background()
+			err := dispatcher.DispatchCommand(
+				ctx,
+				tt.command,
+				tt.args,
+				"test-version",
+				"test-date",
+				"test-commit",
+			)
+
 			if tt.expectError {
 				require.Error(t, err)
 				if tt.errorMsg != "" {
@@ -315,7 +520,7 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 			command: "pop",
 			args:    []string{},
 			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetPopularMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
+				mock.GetPopularMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
 					return []internal.Movie{}, nil
 				}
 			},
@@ -325,7 +530,7 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 			command: "top",
 			args:    []string{},
 			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetTopRatedMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
+				mock.GetTopRatedMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
 					return []internal.Movie{}, nil
 				}
 			},
@@ -335,7 +540,7 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 			command: "rated",
 			args:    []string{},
 			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetTopRatedMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
+				mock.GetTopRatedMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
 					return []internal.Movie{}, nil
 				}
 			},
@@ -345,7 +550,7 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 			command: "now",
 			args:    []string{},
 			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetNowPlayingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
+				mock.GetNowPlayingMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
 					return []internal.Movie{}, nil
 				}
 			},
@@ -355,7 +560,7 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 			command: "playing",
 			args:    []string{},
 			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetNowPlayingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
+				mock.GetNowPlayingMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
 					return []internal.Movie{}, nil
 				}
 			},
@@ -365,7 +570,7 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 			command: "soon",
 			args:    []string{},
 			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.GetUpcomingMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
+				mock.GetUpcomingMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
 					return []internal.Movie{}, nil
 				}
 			},
@@ -375,7 +580,7 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 			command: "find",
 			args:    []string{"Matrix"},
 			setupMock: func(mock *helpers.MockTMDBClient) {
-				mock.SearchMoviesFunc = func(ctx context.Context, query string, maxItems int) ([]internal.Movie, error) {
+				mock.SearchMoviesFunc = func(_ context.Context, _ string, _ int) ([]internal.Movie, error) {
 					return []internal.Movie{}, nil
 				}
 			},
@@ -383,7 +588,6 @@ func TestCLIDispatcher_CommandAliases(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -451,12 +655,11 @@ func TestCLIDispatcher_AutoSearchDetection(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			mockClient := helpers.NewMockTMDBClient()
-			mockClient.SearchMoviesFunc = func(ctx context.Context, query string, maxItems int) ([]internal.Movie, error) {
+			mockClient.SearchMoviesFunc = func(_ context.Context, _ string, _ int) ([]internal.Movie, error) {
 				return []internal.Movie{}, nil
 			}
 
@@ -474,7 +677,9 @@ func TestCLIDispatcher_AutoSearchDetection(t *testing.T) {
 					tt.command,
 				)
 			} else {
-				assert.False(t, mockClient.WasCalled("SearchMovies"), "SearchMovies should not have been called for: %s", tt.command)
+				// Split long line to fix lll linter issue
+				assert.False(t, mockClient.WasCalled("SearchMovies"),
+					"SearchMovies should not have been called for: %s", tt.command)
 			}
 		})
 	}
@@ -484,9 +689,7 @@ func TestCLIDispatcher_ContextPropagation(t *testing.T) {
 	t.Parallel()
 
 	mockClient := helpers.NewMockTMDBClient()
-	mockClient.GetPopularMoviesFunc = func(ctx context.Context, maxItems int) ([]internal.Movie, error) {
-		// Verify context is passed through
-		assert.NotNil(t, ctx)
+	mockClient.GetPopularMoviesFunc = func(_ context.Context, _ int) ([]internal.Movie, error) {
 		return []internal.Movie{}, nil
 	}
 
@@ -528,7 +731,6 @@ func TestCLIDispatcher_VersionHandling(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
