@@ -37,12 +37,73 @@ func IndexOf(s, substr string) int {
 }
 
 // CaptureOutput captures both stdout and stderr output during function execution.
+// CaptureOutput captures both stdout and stderr output during function execution.
+// Fixed version that properly captures both streams simultaneously.
 func CaptureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 	t.Helper()
 
-	stdoutStr := CaptureStdout(t, fn)
-	stderrStr := CaptureStderr(t, fn)
-	return stdoutStr, stderrStr
+	// Save original stdout and stderr
+	originalStdout := os.Stdout
+	originalStderr := os.Stderr
+
+	// Create pipes for capturing output
+	rOut, wOut, err := os.Pipe()
+	require.NoError(t, err, "Failed to create stdout pipe")
+
+	rErr, wErr, err := os.Pipe()
+	require.NoError(t, err, "Failed to create stderr pipe")
+
+	// Replace stdout and stderr with write ends of pipes
+	os.Stdout = wOut
+	os.Stderr = wErr
+
+	// Channels to collect output
+	stdoutChan := make(chan string, 1)
+	stderrChan := make(chan string, 1)
+
+	// Start goroutines to read from pipes
+	go func() {
+		var buf bytes.Buffer
+		_, e := buf.ReadFrom(rOut)
+		if e != nil {
+			stdoutChan <- ""
+		} else {
+			stdoutChan <- buf.String()
+		}
+	}()
+
+	go func() {
+		var buf bytes.Buffer
+		_, e := buf.ReadFrom(rErr)
+		if e != nil {
+			stderrChan <- ""
+		} else {
+			stderrChan <- buf.String()
+		}
+	}()
+
+	// Execute function
+	fn()
+
+	// Close write ends to signal completion
+	err = wOut.Close()
+	require.NoError(t, err, "Failed to close stdout write end")
+	err = wErr.Close()
+	require.NoError(t, err, "Failed to close stderr write end")
+
+	// Restore original stdout and stderr
+	os.Stdout = originalStdout
+	os.Stderr = originalStderr
+
+	// Collect results
+	stdoutResult := <-stdoutChan
+	stderrResult := <-stderrChan
+
+	// Close read ends
+	_ = rOut.Close()
+	_ = rErr.Close()
+
+	return stdoutResult, stderrResult
 }
 
 // ValidateOutputNotEmpty validates that output is not empty or just whitespace.

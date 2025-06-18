@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -121,10 +122,8 @@ func isCommandPattern(input string) bool {
 		"unknown", // Add "unknown" as a command word to ensure it returns error
 	}
 
-	for _, cmd := range commandWords {
-		if input == cmd {
-			return true
-		}
+	if slices.Contains(commandWords, input) {
+		return true
 	}
 
 	// For dashed words, be more specific about what constitutes a command
