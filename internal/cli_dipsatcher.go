@@ -11,12 +11,12 @@ type CLIDispatcher struct {
 	movieCommands  *MovieCommands
 	tvCommands     *TVCommands
 	configCommands *ConfigCommands
-	client         *Client
+	client         TMDBClient
 	logger         *Logger
 }
 
 // NewCLIDispatcher creates a new command dispatcher.
-func NewCLIDispatcher(client *Client, logger *Logger) *CLIDispatcher {
+func NewCLIDispatcher(client TMDBClient, logger *Logger) *CLIDispatcher {
 	return &CLIDispatcher{
 		movieCommands:  NewMovieCommands(client, logger),
 		tvCommands:     NewTVCommands(client, logger),
