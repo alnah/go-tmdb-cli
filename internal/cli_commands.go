@@ -69,9 +69,125 @@ func (cc *ConfigCommands) HandleConfig() error {
 
 // LooksLikeSearch determines if input looks like a search query.
 func LooksLikeSearch(input string) bool {
-	// Contains spaces, letters, or looks like a movie/TV title
-	return strings.Contains(input, " ") ||
-		(len(input) > 2 && strings.ContainsAny(input, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+	// Empty or very short inputs are not searches
+	if len(input) <= 2 {
+		return false
+	}
+
+	// Numeric-only inputs are not searches
+	if isNumericOnly(input) {
+		return false
+	}
+
+	// Known command patterns should not be treated as searches
+	// Commands like "unknown-command", "top-rated" etc. should return errors, not auto-search
+	if isCommandPattern(input) {
+		return false
+	}
+
+	// Contains spaces - likely a movie title
+	if strings.Contains(input, " ") {
+		return true
+	}
+
+	// Single words: check if they look like movie titles
+	if len(input) > 2 {
+		// Contains mixed case, numbers, or is a reasonable length word with letters
+		if containsMixedCase(input) || strings.ContainsAny(input, "0123456789") {
+			return true
+		}
+
+		// Single words with dashes that have mixed case are likely movie titles (e.g., "SpIdEr-MaN")
+		if strings.Contains(input, "-") && containsMixedCase(input) {
+			return true
+		}
+
+		// Single words that are all letters and longer than 3 chars could be movie titles
+		// But we need to be careful not to catch command names
+		if len(input) > 3 && isOnlyLetters(input) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isCommandPattern checks if input looks like a command rather than a search query.
+func isCommandPattern(input string) bool {
+	// Known command words should not trigger search
+	commandWords := []string{
+		"popular", "pop", "top", "rated", "now", "playing", "soon", "upcoming",
+		"search", "find", "discover", "help", "version", "config", "tv",
+		"unknown", // Add "unknown" as a command word to ensure it returns error
+	}
+
+	for _, cmd := range commandWords {
+		if input == cmd {
+			return true
+		}
+	}
+
+	// For dashed words, be more specific about what constitutes a command
+	if strings.Contains(input, "-") && !strings.Contains(input, " ") {
+		// If it's all lowercase or follows simple command pattern, it's a command
+		if strings.ToLower(input) == input {
+			return true
+		}
+		// Check for typical command patterns like "word-word" where both parts are simple
+		parts := strings.Split(input, "-")
+		if len(parts) == 2 && isSimpleCommandWord(parts[0]) && isSimpleCommandWord(parts[1]) {
+			// Both parts are simple lowercase words, likely a command
+			return true
+		}
+	}
+
+	return false
+}
+
+// isSimpleCommandWord checks if a word looks like a simple command word.
+func isSimpleCommandWord(word string) bool {
+	// Simple command words are typically short, lowercase, and contain only letters
+	return len(word) <= 10 && strings.ToLower(word) == word && isOnlyLetters(word)
+}
+
+// isNumericOnly checks if string contains only digits.
+func isNumericOnly(str string) bool {
+	for _, r := range str {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return len(str) > 0
+}
+
+// isOnlyLetters checks if string contains only letters.
+func isOnlyLetters(s string) bool {
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
+			return false
+		}
+	}
+	return true
+}
+
+// containsMixedCase checks if string has both upper and lowercase letters.
+func containsMixedCase(s string) bool {
+	hasUpper := false
+	hasLower := false
+
+	for _, r := range s {
+		if r >= 'A' && r <= 'Z' {
+			hasUpper = true
+		} else if r >= 'a' && r <= 'z' {
+			hasLower = true
+		}
+
+		if hasUpper && hasLower {
+			return true
+		}
+	}
+
+	return false
 }
 
 // HandleList handles movie list commands (popular, top-rated, now-playing, upcoming).
@@ -181,31 +297,27 @@ func (tc *TVCommands) Dispatch(
 	args []string,
 ) error {
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "TV command requires a subcommand\n\n")
-		ShowTVUsage()
-		return fmt.Errorf("missing TV subcommand")
+		return fmt.Errorf("tv command requires a subcommand")
 	}
 
-	tvCommand := args[0]
-	tvArgs := args[1:]
+	subcommand := args[0]
+	subArgs := args[1:]
 
-	switch tvCommand {
+	switch subcommand {
 	case CommandPopular, "pop":
-		return tc.HandleList(ctx, CommandPopular, tvArgs)
+		return tc.HandleList(ctx, CommandPopular, subArgs)
 	case CommandTopRated, "top", "rated":
-		return tc.HandleList(ctx, CommandTopRated, tvArgs)
+		return tc.HandleList(ctx, CommandTopRated, subArgs)
 	case CommandOnTheAir, "air", "airing":
-		return tc.HandleList(ctx, CommandOnTheAir, tvArgs)
+		return tc.HandleList(ctx, CommandOnTheAir, subArgs)
 	case CommandSearch, "find":
-		return tc.HandleSearch(ctx, tvArgs)
+		return tc.HandleSearch(ctx, subArgs)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown TV subcommand: %s\n\n", tvCommand)
-		ShowTVUsage()
-		return fmt.Errorf("unknown TV subcommand: %s", tvCommand)
+		return fmt.Errorf("unknown tv subcommand: %s", subcommand)
 	}
 }
 
-// HandleList handles TV show list commands.
+// HandleList handles TV list commands (popular, top-rated, on-the-air).
 func (tc *TVCommands) HandleList(
 	ctx context.Context,
 	listType string,
@@ -216,6 +328,7 @@ func (tc *TVCommands) HandleList(
 		return err
 	}
 
+	// Parse count from positional args
 	count, err := ParseCountArg(posArgs, flags.MaxItems)
 	if err != nil {
 		return err
@@ -225,8 +338,10 @@ func (tc *TVCommands) HandleList(
 		return e
 	}
 
+	// Show progress for larger requests
 	ShowProgress(fmt.Sprintf("Fetching %d %s TV shows", count, listType), count)
 
+	// Fetch TV shows based on type
 	var tvShows []TVShow
 	switch listType {
 	case CommandPopular:
@@ -239,7 +354,7 @@ func (tc *TVCommands) HandleList(
 		tvShows, err = tc.client.GetOnTheAirTVShows(ctx, count)
 		tc.logger.Info("Fetched %d on-the-air TV shows", len(tvShows))
 	default:
-		return fmt.Errorf("unknown TV show list type: %s", listType)
+		return fmt.Errorf("unknown TV list type: %s", listType)
 	}
 
 	if err != nil {
@@ -251,6 +366,7 @@ func (tc *TVCommands) HandleList(
 		return nil
 	}
 
+	// Format and display
 	options := BuildFormatOptions(flags)
 
 	if options.Format == FormatTable {
