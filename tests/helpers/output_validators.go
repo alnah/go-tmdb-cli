@@ -21,6 +21,30 @@ const (
 	FormatTable = "table"
 )
 
+// SplitLines splits a string into lines and removes empty lines at the end.
+func SplitLines(text string) []string {
+	lines := strings.Split(text, "\n")
+	// Remove trailing empty lines
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
+// IndexOf returns the first index of substr in s, or -1 if not found.
+func IndexOf(s, substr string) int {
+	return strings.Index(s, substr)
+}
+
+// CaptureOutput captures both stdout and stderr output during function execution.
+func CaptureOutput(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+
+	stdoutStr := CaptureStdout(t, fn)
+	stderrStr := CaptureStderr(t, fn)
+	return stdoutStr, stderrStr
+}
+
 // ValidateOutputNotEmpty validates that output is not empty or just whitespace.
 func ValidateOutputNotEmpty(t *testing.T, output string) {
 	t.Helper()
@@ -69,7 +93,7 @@ func ValidateOutputLength(t *testing.T, output string, minLength, maxLength int)
 func ValidateOutputLines(t *testing.T, output string, expectedLines int) {
 	t.Helper()
 
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := SplitLines(output)
 	actualLines := len(lines)
 
 	// Handle empty output case
@@ -85,7 +109,7 @@ func ValidateOutputLines(t *testing.T, output string, expectedLines int) {
 func ValidateOutputLinesRange(t *testing.T, output string, minLines, maxLines int) {
 	t.Helper()
 
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := SplitLines(output)
 	actualLines := len(lines)
 
 	// Handle empty output case
@@ -124,7 +148,7 @@ func ValidateTableOutput(t *testing.T, output string) {
 	ValidateOutputNotEmpty(t, output)
 
 	// Tables should have multiple lines for headers and data
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := SplitLines(output)
 
 	// Allow for empty tables with messages like "No items found"
 	if len(lines) == 1 && (strings.Contains(output, "No ") || strings.Contains(output, "Empty")) {
