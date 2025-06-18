@@ -17,11 +17,6 @@ import (
 	"github.com/alnah/tmdb-cli/tests/helpers"
 )
 
-// Use the same MockTransport from client_movies_test.go or define it here if in separate file
-// If defined in client_movies_test.go and in same package, it can be reused
-
-// createInstantTestClient creates a test client with instant rate limiting for fast tests
-// This is the same helper as in client_movies_test.go - could be moved to a shared test helper file.
 func createInstantTestClientTV(config internal.Config, httpClient *http.Client) *internal.Client {
 	client := internal.NewTestClient(config, httpClient, nil)
 
@@ -35,7 +30,7 @@ func createInstantTestClientTV(config internal.Config, httpClient *http.Client) 
 func TestGetPopularTVShows_SinglePage(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/tv/popular", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 1, 20, 1),
@@ -50,13 +45,13 @@ func TestGetPopularTVShows_SinglePage(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, tvShows, 1)
 	assert.Equal(t, "Test TV Show 1", tvShows[0].Name)
-	assert.Equal(t, 1, transport.requestCount)
+	assert.Equal(t, 1, transport.RequestCount)
 }
 
 func TestGetPopularTVShows_Pagination(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("page=1", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 3, 60, 20),
@@ -78,13 +73,13 @@ func TestGetPopularTVShows_Pagination(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, tvShows, 50)
-	assert.Equal(t, 3, transport.requestCount)
+	assert.Equal(t, 3, transport.RequestCount)
 }
 
 func TestGetPopularTVShows_APIError(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/tv/popular", helpers.MockHTTPResponse{
 		StatusCode: 401,
 		Body:       []byte(`{"status_message":"Invalid API key","status_code":7}`),
@@ -117,7 +112,7 @@ func TestSearchTVShows_EmptyQuery(t *testing.T) {
 func TestSearchTVShows_Success(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/search/tv", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 1, 5, 5),
@@ -137,7 +132,7 @@ func TestSearchTVShows_Success(t *testing.T) {
 func TestSearchTVShows_Pagination(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("page=1", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 2, 30, 20),
@@ -155,13 +150,13 @@ func TestSearchTVShows_Pagination(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, tvShows, 25)
-	assert.Equal(t, 2, transport.requestCount)
+	assert.Equal(t, 2, transport.RequestCount)
 }
 
 func TestDiscoverTVShows_Parameters(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/discover/tv", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 1, 10, 10),
@@ -186,7 +181,7 @@ func TestDiscoverTVShows_Parameters(t *testing.T) {
 	assert.Len(t, tvShows, 10)
 
 	// URL should contain TV-specific parameters
-	url := transport.lastURL
+	url := transport.LastURL
 	assert.Contains(t, url, "with_genres=")
 	assert.Contains(t, url, "vote_average.gte=7")
 	assert.Contains(t, url, "vote_average.lte=9")
@@ -196,7 +191,7 @@ func TestDiscoverTVShows_Parameters(t *testing.T) {
 func TestGetTopRatedTVShows(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/tv/top_rated", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 1, 15, 15),
@@ -215,7 +210,7 @@ func TestGetTopRatedTVShows(t *testing.T) {
 func TestGetOnTheAirTVShows(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/tv/on_the_air", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 1, 10, 10),
@@ -288,7 +283,7 @@ func TestConvertTVShows_EmptyName(t *testing.T) {
 func TestGetPopularTVShows_Cache(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/tv/popular", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 1, 20, 20),
@@ -310,7 +305,7 @@ func TestGetPopularTVShows_Cache(t *testing.T) {
 	assert.Len(t, tvShows2, 20)
 
 	// Only one HTTP request should have been made
-	assert.Equal(t, 1, transport.requestCount)
+	assert.Equal(t, 1, transport.RequestCount)
 }
 
 func TestGetPopularTVShows_NetworkError(t *testing.T) {
@@ -337,7 +332,7 @@ func TestGetPopularTVShows_NetworkError(t *testing.T) {
 func TestTVOperations_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	// Set up responses for all TV endpoints
 	endpoints := []string{
 		"/tv/popular",
@@ -397,7 +392,7 @@ func TestTVOperations_ConcurrentAccess(t *testing.T) {
 func TestDiscoverTVShows_TVSpecificParams(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/discover/tv", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 1, 10, 10),
@@ -419,7 +414,7 @@ func TestDiscoverTVShows_TVSpecificParams(t *testing.T) {
 	assert.NotNil(t, tvShows)
 
 	// Verify TV-specific parameter mapping
-	url := transport.lastURL
+	url := transport.LastURL
 	assert.Contains(t, url, "first_air_date_year=2023") // Not primary_release_year
 }
 
@@ -452,7 +447,7 @@ func TestConvertTVShows_InvalidDates(t *testing.T) {
 
 // Benchmark test for TV pagination.
 func BenchmarkSearchTVShows_Pagination(b *testing.B) {
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("page=1", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateTVPageResponse(1, 2, 30, 20),

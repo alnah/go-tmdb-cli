@@ -1,10 +1,8 @@
 package unit
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -16,38 +14,6 @@ import (
 	"github.com/alnah/tmdb-cli/tests/helpers"
 )
 
-// MockRoundTripper implements http.RoundTripper for testing HTTP requests.
-type MockRoundTripper struct {
-	responses []MockResponse
-	callCount int
-}
-
-type MockResponse struct {
-	statusCode int
-	body       string
-	err        error
-}
-
-func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if m.callCount >= len(m.responses) {
-		return nil, errors.New("unexpected request")
-	}
-
-	resp := m.responses[m.callCount]
-	m.callCount++
-
-	if resp.err != nil {
-		return nil, resp.err
-	}
-
-	return &http.Response{
-		StatusCode: resp.statusCode,
-		Body:       io.NopCloser(bytes.NewBufferString(resp.body)),
-		Header:     make(http.Header),
-		Request:    req,
-	}, nil
-}
-
 func TestClient_RetryDelays(t *testing.T) {
 	t.Run("retry with progressive delays on network errors", func(t *testing.T) {
 		// Setup mock clock
@@ -56,12 +22,12 @@ func TestClient_RetryDelays(t *testing.T) {
 		}
 
 		// Setup HTTP client that fails multiple times
-		mockTransport := &MockRoundTripper{
-			responses: []MockResponse{
-				{err: errors.New("network error 1")},
-				{err: errors.New("network error 2")},
-				{err: errors.New("network error 3")},
-				{err: errors.New("network error 4")}, // Final failure
+		mockTransport := &helpers.MockRoundTripper{
+			Responses: []helpers.MockResponse{
+				{Err: errors.New("network error 1")},
+				{Err: errors.New("network error 2")},
+				{Err: errors.New("network error 3")},
+				{Err: errors.New("network error 4")}, // Final failure
 			},
 		}
 
@@ -91,7 +57,7 @@ func TestClient_RetryDelays(t *testing.T) {
 		assert.Equal(t, 3*time.Second, mockClock.SleepCalls[2], "Third retry delay")
 
 		// Verify all attempts were made
-		assert.Equal(t, 4, mockTransport.callCount, "Should make initial request + 3 retries")
+		assert.Equal(t, 4, mockTransport.CallCount, "Should make initial request + 3 retries")
 	})
 
 	t.Run("successful request after retries", func(t *testing.T) {
@@ -101,11 +67,11 @@ func TestClient_RetryDelays(t *testing.T) {
 		}
 
 		// Setup HTTP client that fails twice then succeeds
-		mockTransport := &MockRoundTripper{
-			responses: []MockResponse{
-				{err: errors.New("network error 1")},
-				{err: errors.New("network error 2")},
-				{statusCode: 200, body: `{"success": true}`}, // Success on third attempt
+		mockTransport := &helpers.MockRoundTripper{
+			Responses: []helpers.MockResponse{
+				{Err: errors.New("network error 1")},
+				{Err: errors.New("network error 2")},
+				{StatusCode: 200, Body: `{"success": true}`}, // Success on third attempt
 			},
 		}
 
@@ -134,7 +100,7 @@ func TestClient_RetryDelays(t *testing.T) {
 		assert.Equal(t, 2*time.Second, mockClock.SleepCalls[1])
 
 		// Verify attempts
-		assert.Equal(t, 3, mockTransport.callCount)
+		assert.Equal(t, 3, mockTransport.CallCount)
 	})
 
 	t.Run("no retries on successful first request", func(t *testing.T) {
@@ -144,9 +110,9 @@ func TestClient_RetryDelays(t *testing.T) {
 		}
 
 		// Setup HTTP client that succeeds immediately
-		mockTransport := &MockRoundTripper{
-			responses: []MockResponse{
-				{statusCode: 200, body: `{"data": "test"}`},
+		mockTransport := &helpers.MockRoundTripper{
+			Responses: []helpers.MockResponse{
+				{StatusCode: 200, Body: `{"data": "test"}`},
 			},
 		}
 
@@ -173,7 +139,7 @@ func TestClient_RetryDelays(t *testing.T) {
 		assert.Empty(t, mockClock.SleepCalls)
 
 		// Verify only one attempt
-		assert.Equal(t, 1, mockTransport.callCount)
+		assert.Equal(t, 1, mockTransport.CallCount)
 	})
 
 	t.Run("zero retries configuration", func(t *testing.T) {
@@ -183,9 +149,9 @@ func TestClient_RetryDelays(t *testing.T) {
 		}
 
 		// Setup HTTP client that fails
-		mockTransport := &MockRoundTripper{
-			responses: []MockResponse{
-				{err: errors.New("network error")},
+		mockTransport := &helpers.MockRoundTripper{
+			Responses: []helpers.MockResponse{
+				{Err: errors.New("network error")},
 			},
 		}
 
@@ -212,7 +178,7 @@ func TestClient_RetryDelays(t *testing.T) {
 		assert.Empty(t, mockClock.SleepCalls)
 
 		// Verify only one attempt
-		assert.Equal(t, 1, mockTransport.callCount)
+		assert.Equal(t, 1, mockTransport.CallCount)
 	})
 
 	t.Run("context cancellation during retry", func(t *testing.T) {
@@ -222,11 +188,11 @@ func TestClient_RetryDelays(t *testing.T) {
 		}
 
 		// Setup HTTP client that always fails
-		mockTransport := &MockRoundTripper{
-			responses: []MockResponse{
-				{err: errors.New("network error 1")},
-				{err: errors.New("network error 2")},
-				{err: errors.New("network error 3")},
+		mockTransport := &helpers.MockRoundTripper{
+			Responses: []helpers.MockResponse{
+				{Err: errors.New("network error 1")},
+				{Err: errors.New("network error 2")},
+				{Err: errors.New("network error 3")},
 			},
 		}
 
@@ -273,9 +239,9 @@ func TestClient_RetryOnStatusCodes(t *testing.T) {
 		for _, statusCode := range statusCodes {
 			t.Run(helpers.FormatStatusCode(statusCode), func(t *testing.T) {
 				// Setup HTTP client that returns error status
-				mockTransport := &MockRoundTripper{
-					responses: []MockResponse{
-						{statusCode: statusCode, body: `{"error": "client error"}`},
+				mockTransport := &helpers.MockRoundTripper{
+					Responses: []helpers.MockResponse{
+						{StatusCode: statusCode, Body: `{"error": "client error"}`},
 					},
 				}
 
@@ -301,7 +267,7 @@ func TestClient_RetryOnStatusCodes(t *testing.T) {
 				assert.Empty(t, mockClock.SleepCalls)
 
 				// Verify only one attempt
-				assert.Equal(t, 1, mockTransport.callCount)
+				assert.Equal(t, 1, mockTransport.CallCount)
 			})
 		}
 	})
@@ -318,9 +284,9 @@ func TestClient_RetryOnStatusCodes(t *testing.T) {
 		for _, statusCode := range statusCodes {
 			t.Run(helpers.FormatStatusCode(statusCode), func(t *testing.T) {
 				// Setup HTTP client that returns error status
-				mockTransport := &MockRoundTripper{
-					responses: []MockResponse{
-						{statusCode: statusCode, body: `{"error": "server error"}`},
+				mockTransport := &helpers.MockRoundTripper{
+					Responses: []helpers.MockResponse{
+						{StatusCode: statusCode, Body: `{"error": "server error"}`},
 					},
 				}
 
@@ -346,7 +312,7 @@ func TestClient_RetryOnStatusCodes(t *testing.T) {
 				assert.Empty(t, mockClock.SleepCalls)
 
 				// Verify only one attempt
-				assert.Equal(t, 1, mockTransport.callCount)
+				assert.Equal(t, 1, mockTransport.CallCount)
 			})
 		}
 	})
@@ -361,13 +327,13 @@ func TestClient_RetryDelayCalculation(t *testing.T) {
 
 		// Create a transport that always fails
 		numRetries := 10
-		responses := make([]MockResponse, numRetries+1)
+		responses := make([]helpers.MockResponse, numRetries+1)
 		for i := range responses {
-			responses[i] = MockResponse{err: errors.New("network error")}
+			responses[i] = helpers.MockResponse{Err: errors.New("network error")}
 		}
 
-		mockTransport := &MockRoundTripper{
-			responses: responses,
+		mockTransport := &helpers.MockRoundTripper{
+			Responses: responses,
 		}
 
 		httpClient := &http.Client{
@@ -408,12 +374,12 @@ func TestClient_TimeTracking(t *testing.T) {
 		}
 
 		// Setup HTTP client that fails 3 times then succeeds
-		mockTransport := &MockRoundTripper{
-			responses: []MockResponse{
-				{err: errors.New("error 1")},
-				{err: errors.New("error 2")},
-				{err: errors.New("error 3")},
-				{statusCode: 200, body: `{"success": true}`},
+		mockTransport := &helpers.MockRoundTripper{
+			Responses: []helpers.MockResponse{
+				{Err: errors.New("error 1")},
+				{Err: errors.New("error 2")},
+				{Err: errors.New("error 3")},
+				{StatusCode: 200, Body: `{"success": true}`},
 			},
 		}
 

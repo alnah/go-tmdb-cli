@@ -11,7 +11,6 @@ import (
 	"github.com/alnah/tmdb-cli/tests/fixtures"
 )
 
-// since formatYear is not exported, we test it indirectly.
 func TestFormatYear(t *testing.T) {
 	tests := []struct {
 		name     string

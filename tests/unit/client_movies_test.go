@@ -1,10 +1,8 @@
 package unit
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"sync"
 	"testing"
@@ -18,66 +16,6 @@ import (
 	"github.com/alnah/tmdb-cli/tests/fixtures"
 	"github.com/alnah/tmdb-cli/tests/helpers"
 )
-
-// MockTransport is a mock HTTP transport for testing.
-type MockTransport struct {
-	mu           sync.RWMutex
-	responses    map[string]helpers.MockHTTPResponse
-	requestCount int
-	lastURL      string
-}
-
-// NewMockTransport creates a new mock transport.
-func NewMockTransport() *MockTransport {
-	return &MockTransport{
-		responses: make(map[string]helpers.MockHTTPResponse),
-	}
-}
-
-// SetResponse sets a response for a URL pattern.
-func (t *MockTransport) SetResponse(pattern string, response helpers.MockHTTPResponse) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.responses[pattern] = response
-}
-
-// RoundTrip implements http.RoundTripper.
-func (t *MockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	t.mu.Lock()
-	t.requestCount++
-	t.lastURL = req.URL.String()
-	t.mu.Unlock()
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	// Check for exact match first
-	if resp, ok := t.responses[req.URL.Path]; ok {
-		return &http.Response{
-			StatusCode: resp.StatusCode,
-			Body:       io.NopCloser(bytes.NewReader(resp.Body)),
-			Header:     make(http.Header),
-		}, nil
-	}
-
-	// Check for pattern matches (e.g., "page=1", "page=2")
-	for pattern, resp := range t.responses {
-		if bytes.Contains([]byte(req.URL.String()), []byte(pattern)) {
-			return &http.Response{
-				StatusCode: resp.StatusCode,
-				Body:       io.NopCloser(bytes.NewReader(resp.Body)),
-				Header:     make(http.Header),
-			}, nil
-		}
-	}
-
-	// Default error response
-	return &http.Response{
-		StatusCode: 404,
-		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"not found"}`))),
-		Header:     make(http.Header),
-	}, nil
-}
 
 // createInstantTestClient creates a test client with instant rate limiting for fast tests.
 func createInstantTestClient(config internal.Config, httpClient *http.Client) *internal.Client {
@@ -96,7 +34,7 @@ func createInstantTestClient(config internal.Config, httpClient *http.Client) *i
 func TestGetPopularMovies_SinglePage(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/movie/popular", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 20, 1),
@@ -111,13 +49,13 @@ func TestGetPopularMovies_SinglePage(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, movies, 1)
 	assert.Equal(t, "Test Movie 1", movies[0].Title)
-	assert.Equal(t, 1, transport.requestCount)
+	assert.Equal(t, 1, transport.RequestCount)
 }
 
 func TestGetPopularMovies_Pagination(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("page=1", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 3, 60, 20),
@@ -139,13 +77,13 @@ func TestGetPopularMovies_Pagination(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, movies, 50)
-	assert.Equal(t, 3, transport.requestCount)
+	assert.Equal(t, 3, transport.RequestCount)
 }
 
 func TestGetPopularMovies_MaxItemsLimit(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/movie/popular", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 20, 20),
@@ -159,13 +97,13 @@ func TestGetPopularMovies_MaxItemsLimit(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, movies, 5)
-	assert.Equal(t, 1, transport.requestCount)
+	assert.Equal(t, 1, transport.RequestCount)
 }
 
 func TestGetPopularMovies_APIError(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/movie/popular", helpers.MockHTTPResponse{
 		StatusCode: 401,
 		Body:       []byte(`{"status_message":"Invalid API key","status_code":7}`),
@@ -198,7 +136,7 @@ func TestSearchMovies_EmptyQuery(t *testing.T) {
 func TestSearchMovies_Success(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/search/movie", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 5, 5),
@@ -213,14 +151,14 @@ func TestSearchMovies_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, movies)
 	assert.Len(t, movies, 5)
-	assert.Contains(t, transport.lastURL, "query=")
-	assert.Contains(t, transport.lastURL, "Matrix")
+	assert.Contains(t, transport.LastURL, "query=")
+	assert.Contains(t, transport.LastURL, "Matrix")
 }
 
 func TestSearchMovies_Pagination(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("page=1", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 2, 30, 20),
@@ -238,13 +176,13 @@ func TestSearchMovies_Pagination(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, movies, 25)
-	assert.Equal(t, 2, transport.requestCount)
+	assert.Equal(t, 2, transport.RequestCount)
 }
 
 func TestDiscoverMovies_Parameters(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/discover/movie", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 10, 10),
@@ -270,7 +208,7 @@ func TestDiscoverMovies_Parameters(t *testing.T) {
 	assert.Len(t, movies, 10)
 
 	// URL should contain parameters
-	url := transport.lastURL
+	url := transport.LastURL
 	assert.Contains(t, url, "with_genres=")
 	assert.Contains(t, url, "vote_average.gte=7")
 	assert.Contains(t, url, "vote_average.lte=9")
@@ -341,7 +279,7 @@ func TestBuildBaseDiscoverParams(t *testing.T) {
 func TestGetPopularMovies_Cache(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/movie/popular", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 20, 20),
@@ -363,13 +301,13 @@ func TestGetPopularMovies_Cache(t *testing.T) {
 	assert.Len(t, movies2, 20)
 
 	// Only one HTTP request should have been made
-	assert.Equal(t, 1, transport.requestCount)
+	assert.Equal(t, 1, transport.RequestCount)
 }
 
 func TestSearchMovies_RateLimit(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	// First request returns rate limit error
 	transport.SetResponse("/search/movie", helpers.MockHTTPResponse{
 		StatusCode: 429,
@@ -392,7 +330,7 @@ func TestSearchMovies_RateLimit(t *testing.T) {
 func TestGetTopRatedMovies(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/movie/top_rated", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 15, 15),
@@ -411,7 +349,7 @@ func TestGetTopRatedMovies(t *testing.T) {
 func TestGetNowPlayingMovies(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/movie/now_playing", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 10, 10),
@@ -430,7 +368,7 @@ func TestGetNowPlayingMovies(t *testing.T) {
 func TestGetUpcomingMovies(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("/movie/upcoming", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 1, 8, 8),
@@ -480,7 +418,7 @@ func (t *failingTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 func TestMovieOperations_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	// Set up responses for all endpoints
 	endpoints := []string{
 		"/movie/popular",
@@ -538,7 +476,7 @@ func TestMovieOperations_ConcurrentAccess(t *testing.T) {
 
 // Benchmark test for pagination.
 func BenchmarkSearchMovies_Pagination(b *testing.B) {
-	transport := NewMockTransport()
+	transport := helpers.NewMockTransport()
 	transport.SetResponse("page=1", helpers.MockHTTPResponse{
 		StatusCode: 200,
 		Body:       fixtures.CreateMoviePageResponse(1, 2, 30, 20),

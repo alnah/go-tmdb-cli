@@ -2,9 +2,11 @@
 package helpers
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"sync"
 
 	"github.com/alnah/tmdb-cli/internal"
@@ -519,4 +521,98 @@ func CreateMockTVShowCollection(count int) []internal.TVShow {
 			Build()
 	}
 	return shows
+}
+
+// MockRoundTripper is for testing purpose.
+type MockRoundTripper struct {
+	Responses []MockResponse
+	CallCount int
+}
+
+// MockResponse is for testing purpose.
+type MockResponse struct {
+	StatusCode int
+	Body       string
+	Err        error
+}
+
+// RoundTrip is for testing purpose.
+func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if m.CallCount >= len(m.Responses) {
+		return nil, errors.New("unexpected request")
+	}
+
+	resp := m.Responses[m.CallCount]
+	m.CallCount++
+
+	if resp.Err != nil {
+		return nil, resp.Err
+	}
+
+	return &http.Response{
+		StatusCode: resp.StatusCode,
+		Body:       io.NopCloser(bytes.NewBufferString(resp.Body)),
+		Header:     make(http.Header),
+		Request:    req,
+	}, nil
+}
+
+// MockTransport is a mock HTTP transport for testing.
+type MockTransport struct {
+	mu           sync.RWMutex
+	Responses    map[string]MockHTTPResponse
+	RequestCount int
+	LastURL      string
+}
+
+// NewMockTransport creates a new mock transport.
+func NewMockTransport() *MockTransport {
+	return &MockTransport{
+		Responses: make(map[string]MockHTTPResponse),
+	}
+}
+
+// SetResponse sets a response for a URL pattern.
+func (t *MockTransport) SetResponse(pattern string, response MockHTTPResponse) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.Responses[pattern] = response
+}
+
+// RoundTrip implements http.RoundTripper.
+func (t *MockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.mu.Lock()
+	t.RequestCount++
+	t.LastURL = req.URL.String()
+	t.mu.Unlock()
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	// Check for exact match first
+	if resp, ok := t.Responses[req.URL.Path]; ok {
+		return &http.Response{
+			StatusCode: resp.StatusCode,
+			Body:       io.NopCloser(bytes.NewReader(resp.Body)),
+			Header:     make(http.Header),
+		}, nil
+	}
+
+	// Check for pattern matches (e.g., "page=1", "page=2")
+	for pattern, resp := range t.Responses {
+		if bytes.Contains([]byte(req.URL.String()), []byte(pattern)) {
+			return &http.Response{
+				StatusCode: resp.StatusCode,
+				Body:       io.NopCloser(bytes.NewReader(resp.Body)),
+				Header:     make(http.Header),
+			}, nil
+		}
+	}
+
+	// Default error response
+	return &http.Response{
+		StatusCode: 404,
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"not found"}`))),
+		Header:     make(http.Header),
+	}, nil
 }
