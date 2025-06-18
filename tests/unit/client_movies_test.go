@@ -1,74 +1,96 @@
 package unit
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"io"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 
 	"github.com/alnah/tmdb-cli/internal"
 	"github.com/alnah/tmdb-cli/tests/fixtures"
 	"github.com/alnah/tmdb-cli/tests/helpers"
 )
 
-// MockTransport implements http.RoundTripper for testing.
+// MockTransport is a mock HTTP transport for testing.
 type MockTransport struct {
+	mu           sync.RWMutex
 	responses    map[string]helpers.MockHTTPResponse
 	requestCount int
 	lastURL      string
-	calls        []string
 }
 
+// NewMockTransport creates a new mock transport.
 func NewMockTransport() *MockTransport {
 	return &MockTransport{
 		responses: make(map[string]helpers.MockHTTPResponse),
-		calls:     make([]string, 0),
 	}
 }
 
-func (mt *MockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	mt.requestCount++
-	mt.lastURL = req.URL.String()
-	mt.calls = append(mt.calls, req.URL.Path)
+// SetResponse sets a response for a URL pattern.
+func (t *MockTransport) SetResponse(pattern string, response helpers.MockHTTPResponse) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.responses[pattern] = response
+}
 
-	for pattern, mockResp := range mt.responses {
-		if contains(req.URL.String(), pattern) {
-			if mockResp.Error != nil {
-				return nil, mockResp.Error
-			}
+// RoundTrip implements http.RoundTripper.
+func (t *MockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.mu.Lock()
+	t.requestCount++
+	t.lastURL = req.URL.String()
+	t.mu.Unlock()
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	// Check for exact match first
+	if resp, ok := t.responses[req.URL.Path]; ok {
+		return &http.Response{
+			StatusCode: resp.StatusCode,
+			Body:       io.NopCloser(bytes.NewReader(resp.Body)),
+			Header:     make(http.Header),
+		}, nil
+	}
+
+	// Check for pattern matches (e.g., "page=1", "page=2")
+	for pattern, resp := range t.responses {
+		if bytes.Contains([]byte(req.URL.String()), []byte(pattern)) {
 			return &http.Response{
-				StatusCode: mockResp.StatusCode,
-				Body:       helpers.CreateResponseBody(mockResp.Body),
+				StatusCode: resp.StatusCode,
+				Body:       io.NopCloser(bytes.NewReader(resp.Body)),
 				Header:     make(http.Header),
 			}, nil
 		}
 	}
 
+	// Default error response
 	return &http.Response{
 		StatusCode: 404,
-		Body:       helpers.CreateResponseBody([]byte(`{"error": "Not found"}`)),
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"not found"}`))),
 		Header:     make(http.Header),
 	}, nil
 }
 
-func (mt *MockTransport) SetResponse(pattern string, response helpers.MockHTTPResponse) {
-	mt.responses[pattern] = response
-}
+// createInstantTestClient creates a test client with instant rate limiting for fast tests.
+func createInstantTestClient(config internal.Config, httpClient *http.Client) *internal.Client {
+	// Create a client with an instant rate limiter for tests
+	client := internal.NewTestClient(config, httpClient, nil)
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && hasSubstring(s, substr)
-}
+	// Replace the rate limiter with one that allows instant requests
+	// This requires adding a SetRateLimiter method to the Client
+	// For now, we'll use a high rate limit to minimize delays
+	instantRateLimiter := rate.NewLimiter(rate.Limit(1000), 1000) // Very high rate
+	client.SetRateLimiter(instantRateLimiter)
 
-func hasSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return client
 }
 
 func TestGetPopularMovies_SinglePage(t *testing.T) {
@@ -82,7 +104,7 @@ func TestGetPopularMovies_SinglePage(t *testing.T) {
 
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	movies, err := client.GetPopularMovies(context.Background(), 20)
 
@@ -111,7 +133,7 @@ func TestGetPopularMovies_Pagination(t *testing.T) {
 
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	movies, err := client.GetPopularMovies(context.Background(), 50)
 
@@ -131,7 +153,7 @@ func TestGetPopularMovies_MaxItemsLimit(t *testing.T) {
 
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	movies, err := client.GetPopularMovies(context.Background(), 5)
 
@@ -151,7 +173,7 @@ func TestGetPopularMovies_APIError(t *testing.T) {
 
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	movies, err := client.GetPopularMovies(context.Background(), 20)
 
@@ -184,7 +206,7 @@ func TestSearchMovies_Success(t *testing.T) {
 
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	movies, err := client.SearchMovies(context.Background(), "Matrix", 20)
 
@@ -210,7 +232,7 @@ func TestSearchMovies_Pagination(t *testing.T) {
 
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	movies, err := client.SearchMovies(context.Background(), "action", 25)
 
@@ -230,7 +252,7 @@ func TestDiscoverMovies_Parameters(t *testing.T) {
 
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	opts := helpers.NewSearchOptionsBuilder().
 		WithIncludeGenres([]int{28, 35}).
@@ -328,7 +350,7 @@ func TestGetPopularMovies_Cache(t *testing.T) {
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
 	config.CacheTTL = 5 * time.Minute
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	// First request
 	movies1, err := client.GetPopularMovies(context.Background(), 20)
@@ -357,11 +379,183 @@ func TestSearchMovies_RateLimit(t *testing.T) {
 	httpClient := &http.Client{Transport: transport}
 	config := helpers.MockValidConfig()
 	config.MaxRetries = 0 // No retries
-	client := internal.NewTestClient(config, httpClient, nil)
+	client := createInstantTestClient(config, httpClient)
 
 	movies, err := client.SearchMovies(context.Background(), "test", 5)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "rate limit exceeded")
 	assert.Nil(t, movies)
+}
+
+// Additional test cases for other movie endpoints.
+func TestGetTopRatedMovies(t *testing.T) {
+	t.Parallel()
+
+	transport := NewMockTransport()
+	transport.SetResponse("/movie/top_rated", helpers.MockHTTPResponse{
+		StatusCode: 200,
+		Body:       fixtures.CreateMoviePageResponse(1, 1, 15, 15),
+	})
+
+	httpClient := &http.Client{Transport: transport}
+	config := helpers.MockValidConfig()
+	client := createInstantTestClient(config, httpClient)
+
+	movies, err := client.GetTopRatedMovies(context.Background(), 15)
+
+	assert.NoError(t, err)
+	assert.Len(t, movies, 15)
+}
+
+func TestGetNowPlayingMovies(t *testing.T) {
+	t.Parallel()
+
+	transport := NewMockTransport()
+	transport.SetResponse("/movie/now_playing", helpers.MockHTTPResponse{
+		StatusCode: 200,
+		Body:       fixtures.CreateMoviePageResponse(1, 1, 10, 10),
+	})
+
+	httpClient := &http.Client{Transport: transport}
+	config := helpers.MockValidConfig()
+	client := createInstantTestClient(config, httpClient)
+
+	movies, err := client.GetNowPlayingMovies(context.Background(), 10)
+
+	assert.NoError(t, err)
+	assert.Len(t, movies, 10)
+}
+
+func TestGetUpcomingMovies(t *testing.T) {
+	t.Parallel()
+
+	transport := NewMockTransport()
+	transport.SetResponse("/movie/upcoming", helpers.MockHTTPResponse{
+		StatusCode: 200,
+		Body:       fixtures.CreateMoviePageResponse(1, 1, 8, 8),
+	})
+
+	httpClient := &http.Client{Transport: transport}
+	config := helpers.MockValidConfig()
+	client := createInstantTestClient(config, httpClient)
+
+	movies, err := client.GetUpcomingMovies(context.Background(), 8)
+
+	assert.NoError(t, err)
+	assert.Len(t, movies, 8)
+}
+
+// Test error handling for various scenarios.
+func TestMovieOperations_NetworkError(t *testing.T) {
+	t.Parallel()
+
+	// Create a transport that always fails
+	transport := &failingTransport{
+		err: errors.New("network error"),
+	}
+
+	httpClient := &http.Client{Transport: transport}
+	config := helpers.MockValidConfig()
+	config.MaxRetries = 0 // No retries for faster test
+	client := createInstantTestClient(config, httpClient)
+
+	movies, err := client.GetPopularMovies(context.Background(), 20)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "network error")
+	assert.Nil(t, movies)
+}
+
+// Helper transport that always fails.
+type failingTransport struct {
+	err error
+}
+
+func (t *failingTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, t.err
+}
+
+// Test concurrent access.
+func TestMovieOperations_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
+	transport := NewMockTransport()
+	// Set up responses for all endpoints
+	endpoints := []string{
+		"/movie/popular",
+		"/movie/top_rated",
+		"/movie/now_playing",
+		"/movie/upcoming",
+	}
+
+	for _, endpoint := range endpoints {
+		transport.SetResponse(endpoint, helpers.MockHTTPResponse{
+			StatusCode: 200,
+			Body:       fixtures.CreateMoviePageResponse(1, 1, 5, 5),
+		})
+	}
+
+	httpClient := &http.Client{Transport: transport}
+	config := helpers.MockValidConfig()
+	client := createInstantTestClient(config, httpClient)
+
+	// Run concurrent requests
+	var wg sync.WaitGroup
+	errors := make(chan error, len(endpoints))
+
+	for _, endpoint := range endpoints {
+		wg.Add(1)
+		go func(ep string) {
+			defer wg.Done()
+
+			var err error
+			switch ep {
+			case "/movie/popular":
+				_, err = client.GetPopularMovies(context.Background(), 5)
+			case "/movie/top_rated":
+				_, err = client.GetTopRatedMovies(context.Background(), 5)
+			case "/movie/now_playing":
+				_, err = client.GetNowPlayingMovies(context.Background(), 5)
+			case "/movie/upcoming":
+				_, err = client.GetUpcomingMovies(context.Background(), 5)
+			}
+
+			if err != nil {
+				errors <- err
+			}
+		}(endpoint)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// Check for errors
+	for err := range errors {
+		assert.NoError(t, err)
+	}
+}
+
+// Benchmark test for pagination.
+func BenchmarkSearchMovies_Pagination(b *testing.B) {
+	transport := NewMockTransport()
+	transport.SetResponse("page=1", helpers.MockHTTPResponse{
+		StatusCode: 200,
+		Body:       fixtures.CreateMoviePageResponse(1, 2, 30, 20),
+	})
+	transport.SetResponse("page=2", helpers.MockHTTPResponse{
+		StatusCode: 200,
+		Body:       fixtures.CreateMoviePageResponse(2, 2, 30, 10),
+	})
+
+	httpClient := &http.Client{Transport: transport}
+	config := helpers.MockValidConfig()
+	client := createInstantTestClient(config, httpClient)
+
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = client.SearchMovies(ctx, "action", 25)
+	}
 }

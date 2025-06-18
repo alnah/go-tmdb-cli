@@ -70,6 +70,12 @@ func (c *Client) SetTVGenre(id int, name string) {
 	c.tvGenres[id] = name
 }
 
+// SetRateLimiter allows setting a custom rate limiter for testing purposes.
+// This is useful for tests that need to bypass rate limiting delays.
+func (c *Client) SetRateLimiter(limiter *rate.Limiter) {
+	c.rateLimiter = limiter
+}
+
 // Public methods to expose internal functionality for testing.
 
 // BuildBaseDiscoverParams is for testing purpose.
