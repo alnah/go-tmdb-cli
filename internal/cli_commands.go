@@ -4,7 +4,6 @@ package internal
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 )
@@ -28,12 +27,12 @@ const (
 
 // MovieCommands handles movie-related CLI commands.
 type MovieCommands struct {
-	client *Client
+	client MovieClient
 	logger *Logger
 }
 
 // NewMovieCommands creates a new MovieCommands instance.
-func NewMovieCommands(client *Client, logger *Logger) *MovieCommands {
+func NewMovieCommands(client MovieClient, logger *Logger) *MovieCommands {
 	return &MovieCommands{
 		client: client,
 		logger: logger,
@@ -42,12 +41,12 @@ func NewMovieCommands(client *Client, logger *Logger) *MovieCommands {
 
 // TVCommands handles TV show-related CLI commands.
 type TVCommands struct {
-	client *Client
+	client TVClient
 	logger *Logger
 }
 
 // NewTVCommands creates a new TVCommands instance.
-func NewTVCommands(client *Client, logger *Logger) *TVCommands {
+func NewTVCommands(client TVClient, logger *Logger) *TVCommands {
 	return &TVCommands{
 		client: client,
 		logger: logger,
@@ -142,7 +141,7 @@ func (mc *MovieCommands) HandleSearch(
 	ctx context.Context,
 	args []string,
 ) error {
-	return genericSearch(ctx, mc.client, mc.logger, args, SearchTypeMovie)
+	return movieSearch(ctx, mc.client, mc.logger, args)
 }
 
 // HandleAutoSearch handles automatic search detection for movie titles.
@@ -266,86 +265,98 @@ func (tc *TVCommands) HandleSearch(
 	ctx context.Context,
 	args []string,
 ) error {
-	return genericSearch(ctx, tc.client, tc.logger, args, SearchTypeTV)
+	return tvSearch(ctx, tc.client, tc.logger, args)
 }
 
-// genericSearch handles both movie and TV search with shared logic.
-func genericSearch(
+// movieSearch handles movie search commands.
+func movieSearch(
 	ctx context.Context,
-	client *Client,
+	client MovieSearcher,
 	logger *Logger,
 	args []string,
-	searchType SearchType,
 ) error {
-	query, maxItems, format, originalTitle, noHeader, err := ParseSearchCommand(args, searchType)
-	if err != nil {
-		return err
-	}
-
-	// Perform search and get results
-	resultCount, displayFunc, err := performSearch(ctx, client, logger, query, maxItems, searchType)
-	if err != nil {
-		return err
-	}
-
-	// Handle empty results
-	if resultCount == 0 {
-		return handleEmptySearchResults(query, searchType)
-	}
-
-	// Format and display results
-	return displaySearchResults(
-		displayFunc,
-		format,
-		originalTitle,
-		noHeader,
-		query,
-		resultCount,
-		searchType,
+	query, maxItems, format, originalTitle, noHeader, err := ParseSearchCommand(
+		args,
+		SearchTypeMovie,
 	)
+	if err != nil {
+		return err
+	}
+
+	ShowSearchProgress(query, maxItems)
+
+	movies, err := client.SearchMovies(ctx, query, maxItems)
+	if err != nil {
+		return fmt.Errorf("search failed: %w", err)
+	}
+
+	logger.Info("Search for \"%s\" returned %d movies", query, len(movies))
+
+	if len(movies) == 0 {
+		return handleEmptySearchResults(query, SearchTypeMovie)
+	}
+
+	// Format and display
+	options := FormatOptions{
+		Format:           format,
+		UseOriginalTitle: originalTitle,
+		NoHeader:         noHeader,
+		MaxWidth:         DefaultMaxWidth,
+	}
+
+	if options.Format == FormatTable {
+		titleType := "titles"
+		if originalTitle {
+			titleType = "original language " + titleType
+		}
+		fmt.Printf("Found %d movies for \"%s\" (%s)\n\n", len(movies), query, titleType)
+	}
+
+	return FormatMovies(os.Stdout, movies, options)
 }
 
-// performSearch executes the search based on type and returns results.
-func performSearch(
+// tvSearch handles TV show search commands.
+func tvSearch(
 	ctx context.Context,
-	client *Client,
+	client TVShowSearcher,
 	logger *Logger,
-	query string,
-	maxItems int,
-	searchType SearchType,
-) (int, func(io.Writer, FormatOptions) error, error) {
-	if searchType == SearchTypeMovie {
-		ShowSearchProgress(query, maxItems)
-
-		movies, err := client.SearchMovies(ctx, query, maxItems)
-		if err != nil {
-			return 0, nil, fmt.Errorf("search failed: %w", err)
-		}
-
-		logger.Info("Search for \"%s\" returned %d movies", query, len(movies))
-
-		displayFunc := func(w io.Writer, opts FormatOptions) error {
-			return FormatMovies(w, movies, opts)
-		}
-
-		return len(movies), displayFunc, nil
+	args []string,
+) error {
+	query, maxItems, format, originalTitle, noHeader, err := ParseSearchCommand(args, SearchTypeTV)
+	if err != nil {
+		return err
 	}
 
-	// TV search
 	ShowTVSearchProgress(query, maxItems)
 
 	tvShows, err := client.SearchTVShows(ctx, query, maxItems)
 	if err != nil {
-		return 0, nil, fmt.Errorf("TV search failed: %w", err)
+		return fmt.Errorf("TV search failed: %w", err)
 	}
 
 	logger.Info("TV search for \"%s\" returned %d shows", query, len(tvShows))
 
-	displayFunc := func(w io.Writer, opts FormatOptions) error {
-		return FormatTVShows(w, tvShows, opts)
+	if len(tvShows) == 0 {
+		return handleEmptySearchResults(query, SearchTypeTV)
 	}
 
-	return len(tvShows), displayFunc, nil
+	// Format and display
+	options := FormatOptions{
+		Format:           format,
+		UseOriginalTitle: originalTitle,
+		NoHeader:         noHeader,
+		MaxWidth:         DefaultMaxWidth,
+	}
+
+	if options.Format == FormatTable {
+		titleType := "names"
+		if originalTitle {
+			titleType = "original language " + titleType
+		}
+		fmt.Printf("Found %d TV shows for \"%s\" (%s)\n\n", len(tvShows), query, titleType)
+	}
+
+	return FormatTVShows(os.Stdout, tvShows, options)
 }
 
 // handleEmptySearchResults handles the case when no search results are found.
@@ -360,40 +371,4 @@ func handleEmptySearchResults(query string, searchType SearchType) error {
 		fmt.Printf("  - Include the first air year\n")
 	}
 	return nil
-}
-
-// displaySearchResults formats and displays search results.
-func displaySearchResults(
-	displayFunc func(io.Writer, FormatOptions) error,
-	format string,
-	originalTitle, noHeader bool,
-	query string,
-	resultCount int,
-	searchType SearchType,
-) error {
-	// Format and display
-	options := FormatOptions{
-		Format:           format,
-		UseOriginalTitle: originalTitle,
-		NoHeader:         noHeader,
-		MaxWidth:         DefaultMaxWidth,
-	}
-
-	if options.Format == FormatTable {
-		var itemType, titleType string
-		if searchType == SearchTypeMovie {
-			itemType = "movies"
-			titleType = "titles"
-		} else {
-			itemType = "TV shows"
-			titleType = "names"
-		}
-
-		if originalTitle {
-			titleType = "original language " + titleType
-		}
-		fmt.Printf("Found %d %s for \"%s\" (%s)\n\n", resultCount, itemType, query, titleType)
-	}
-
-	return displayFunc(os.Stdout, options)
 }
