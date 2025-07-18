@@ -232,6 +232,14 @@ tools:
 	fi
 	@echo "$(GREEN)Tools installation complete$(NC)"
 
+# Install tools using go.mod (alternative method)
+tools-dev:
+	@echo "$(BLUE)Installing development tools from go.mod...$(NC)"
+	@go install -tags tools github.com/golangci/golangci-lint/cmd/golangci-lint
+	@go install -tags tools github.com/goreleaser/goreleaser
+	@go install -tags tools github.com/securego/gosec/v2/cmd/gosec
+	@echo "$(GREEN)Tools installation from go.mod complete$(NC)"
+
 # Validate GoReleaser configuration
 release-check:
 	@echo "$(BLUE)Validating GoReleaser configuration...$(NC)"
